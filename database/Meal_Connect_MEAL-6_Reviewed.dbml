@@ -1,0 +1,236 @@
+Project MealConnect {
+  database_type: 'PostgreSQL'
+  Note: 'MEAL-6 revised after review. DBML is logical design, NOT deployed constraints. Add PostgreSQL CHECK constraints, SQL transaction handling, and cross-table authorization checks as described in notes.'
+}
+
+Enum organization_type {
+  restaurant
+  bakery
+  ngo
+}
+Enum verification_status {
+  pending
+  approved
+  rejected
+  suspended
+}
+Enum account_status {
+  active
+  suspended
+  disabled
+}
+Enum user_role {
+  admin
+  business_staff
+  ngo_staff
+  volunteer
+}
+Enum membership_role {
+  owner
+  manager
+  staff
+  coordinator
+  collector
+}
+Enum member_status {
+  invited
+  active
+  removed
+}
+Enum donation_status {
+  draft
+  available
+  partially_allocated
+  fully_allocated
+  collected
+  expired
+  cancelled
+}
+Enum request_status {
+  pending
+  approved
+  rejected
+  cancelled
+  fulfilled
+}
+Enum pickup_status {
+  assigned
+  scheduled
+  picked_up
+  delivered
+  failed
+  cancelled
+}
+
+Table users {
+  user_id bigint [pk, increment]
+  first_name varchar(100) [not null]
+  last_name varchar(100) [not null]
+  email varchar(255) [not null, unique, note: 'Normalize email to lowercase in application or add case-insensitive unique index']
+  phone varchar(25)
+  password_hash varchar(255) [not null, note: 'Never store plaintext passwords']
+  role user_role [not null, note: 'Global platform role; organization-level permissions are in organization_memberships.membership_role']
+  account_status account_status [not null, default: 'active']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Note: 'Authentication identity. System admins need not be members of an organization.'
+}
+
+Table organizations {
+  organization_id bigint [pk, increment]
+  name varchar(180) [not null]
+  type organization_type [not null]
+  registration_number varchar(100) [unique, note: 'Optional; UNIQUE permits multiple NULL values in PostgreSQL']
+  contact_email varchar(255) [not null]
+  contact_phone varchar(25)
+  address_line varchar(255) [not null]
+  city varchar(120) [not null]
+  district varchar(120)
+  verification_status verification_status [not null, default: 'pending']
+  verified_by_user_id bigint [ref: > users.user_id]
+  verified_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Note: 'Business or NGO; verification by an admin, with decisions recorded in organization_verifications.'
+}
+
+Table organization_memberships {
+  membership_id bigint [pk, increment]
+  organization_id bigint [not null, ref: > organizations.organization_id]
+  user_id bigint [not null, ref: > users.user_id]
+  membership_role membership_role [not null, default: 'staff', note: 'Organization-specific permissions; independent of users.role']
+  member_status member_status [not null, default: 'active']
+  joined_at timestamptz [not null, default: `now()`]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (organization_id, user_id) [unique, name: 'uq_membership_org_user']
+    user_id
+  }
+  Note: 'M:N membership. users.role is a global platform role, membership_role is organization-specific; scope org actions to active membership and organization type. Owner represented by membership_role=owner.'
+}
+
+Table organization_verifications {
+  verification_id bigint [pk, increment]
+  organization_id bigint [not null, ref: > organizations.organization_id]
+  reviewed_by_user_id bigint [not null, ref: > users.user_id]
+  decision verification_status [not null, note: 'Only approved/rejected/suspended decision values should be accepted']
+  review_note text
+  reviewed_at timestamptz [not null, default: `now()`]
+
+  Note: 'Preserves admin review decisions; organization current state remains in organizations.verification_status.'
+}
+
+Table donations {
+  donation_id bigint [pk, increment]
+  organization_id bigint [not null, ref: > organizations.organization_id]
+  created_by_user_id bigint [not null, ref: > users.user_id]
+  title varchar(180) [not null]
+  category varchar(100) [not null]
+  description text
+  total_quantity decimal(12,2) [not null, note: 'CHECK total_quantity > 0']
+  allocated_quantity decimal(12,2) [not null, default: 0, note: 'CHECK 0 <= allocated_quantity <= total_quantity; update atomically']
+  quantity_unit varchar(30) [not null, note: 'e.g. portions, kg; all requests use same unit as donation']
+  allergen_info text
+  storage_instructions text
+  prepared_at timestamptz
+  available_from timestamptz [not null]
+  pickup_deadline timestamptz [not null, note: 'CHECK pickup_deadline > available_from']
+  pickup_address varchar(255) [not null]
+  pickup_city varchar(120) [not null]
+  status donation_status [not null, default: 'draft']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (organization_id, status)
+    (status, pickup_deadline)
+  }
+  Note: 'Only approved restaurants/bakeries may publish. Do not allow new requests after deadline or cancellation.'
+}
+
+Table donation_requests {
+  request_id bigint [pk, increment]
+  donation_id bigint [not null, ref: > donations.donation_id]
+  ngo_organization_id bigint [not null, ref: > organizations.organization_id]
+  requested_by_user_id bigint [not null, ref: > users.user_id]
+  requested_quantity decimal(12,2) [not null, note: 'CHECK requested_quantity > 0']
+  status request_status [not null, default: 'pending']
+  request_note text
+  decision_note text
+  reviewed_by_user_id bigint [ref: > users.user_id]
+  reviewed_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (donation_id, status)
+    (ngo_organization_id, status)
+  }
+  Note: 'Only approved NGOs may request. Approval MUST lock donation row and increment allocated_quantity in one PostgreSQL transaction.'
+}
+
+Table pickups {
+  pickup_id bigint [pk, increment]
+  request_id bigint [not null, unique, ref: > donation_requests.request_id, note: 'One pickup maximum per approved request']
+  collector_user_id bigint [ref: > users.user_id]
+  scheduled_at timestamptz
+  picked_up_at timestamptz
+  delivered_at timestamptz
+  status pickup_status [not null, default: 'assigned']
+  pickup_notes text
+  delivery_notes text
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Note: 'Collector must have volunteer permission; pickup created only after approved request.'
+}
+
+Table distribution_records {
+  distribution_id bigint [pk, increment]
+  pickup_id bigint [not null, unique, ref: > pickups.pickup_id, note: 'At most one final distribution record per pickup']
+  recorded_by_user_id bigint [not null, ref: > users.user_id]
+  distributed_quantity decimal(12,2) [not null, note: 'CHECK distributed_quantity > 0 and <= approved request quantity (backend/transaction)']
+  beneficiary_count int [not null, note: 'CHECK beneficiary_count >= 0']
+  distributed_at timestamptz [not null]
+  notes text
+  created_at timestamptz [not null, default: `now()`]
+
+  Note: 'NGO records distribution after successful pickup; quantities and counts must be based on verified records.'
+}
+
+Table notifications {
+  notification_id bigint [pk, increment]
+  recipient_user_id bigint [not null, ref: > users.user_id]
+  title varchar(180) [not null]
+  message text [not null]
+  notification_type varchar(60) [not null]
+  related_entity_type varchar(40) [note: 'Polymorphic link, validated in application']
+  related_entity_id bigint [note: 'No conventional FK: destination table depends on related_entity_type']
+  is_read boolean [not null, default: false]
+  read_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (recipient_user_id, is_read)
+  }
+  Note: 'In-app workflow notifications only.'
+}
+
+Table status_history {
+  status_history_id bigint [pk, increment]
+  entity_type varchar(40) [not null, note: 'organization/donation/request/pickup']
+  entity_id bigint [not null, note: 'Polymorphic entity identifier; validated in application']
+  old_status varchar(50)
+  new_status varchar(50) [not null]
+  changed_by_user_id bigint [ref: > users.user_id, note: 'NULL allowed for automated expiry process']
+  change_reason text
+  changed_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (entity_type, entity_id, changed_at)
+  }
+  Note: 'Append-only audit trail. Generic entity reference cannot have a normal single-table FK.'
+}
