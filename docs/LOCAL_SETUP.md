@@ -313,3 +313,103 @@ Record:
 - Any setup issues and fixes
 
 MEAL-33 should be marked complete only after the instructions have been successfully followed by a teammate, with results recorded in Jira.
+
+## PostgreSQL Database Setup
+
+Meal Connect uses PostgreSQL 17, SQLAlchemy, Alembic and Psycopg for local database development.
+
+### Prerequisites
+
+- PostgreSQL 17 installed and running
+- Python virtual environment activated
+- Backend dependencies installed
+- Local database credentials available
+
+### 1. Create the Local Database
+
+Create a PostgreSQL database named `meal_connect` using DBeaver or another PostgreSQL administration tool.
+
+```sql
+CREATE DATABASE meal_connect;
+```
+
+Skip this command if the database already exists. Do not delete or overwrite an existing database.
+
+### 2. Configure Environment Variables
+
+Copy `backend/.env.example` to `backend/.env`.
+
+Update `DATABASE_URL` with your local PostgreSQL connection information.
+
+Example:
+
+```dotenv
+DATABASE_URL=postgresql+psycopg://YOUR_DB_USER:YOUR_DB_PASSWORD@localhost:5432/meal_connect
+```
+
+Never commit `.env` or real credentials to Git.
+
+### 3. Install Backend Dependencies
+
+From the project root:
+
+```powershell
+cd backend
+python -m pip install -r requirements.txt
+```
+
+### 4. Apply Database Migrations
+
+From the `backend` directory:
+
+```powershell
+python -m alembic upgrade head
+```
+
+Verify the revision:
+
+```powershell
+python -m alembic current
+```
+
+Expected initial revision: `d99d12936307`.
+
+### 5. Load Fictional Development Data
+
+For local development only:
+
+```powershell
+python -m scripts.seed_dev --confirm-development
+```
+
+The seed script creates fictional, disabled demo users, sample organizations, organization memberships and a sample food donation.
+
+The demo user accounts are not usable for authentication.
+
+The script may be run again without creating duplicate demo records.
+
+Never run development seed data against production or a database containing real user information.
+
+### 6. Verify Database Tables
+
+Open DBeaver and connect to the `meal_connect` database.
+
+Navigate to:
+
+`Schemas → public → Tables`
+
+The database should contain 10 application tables and the Alembic migration tracking table, `alembic_version`.
+
+### 7. Run Backend Tests
+
+```powershell
+python -m pytest
+```
+
+### Important Notes
+
+- Each team member maintains a separate local PostgreSQL database.
+- GitHub stores the SQLAlchemy models, migration files and seed script, not the PostgreSQL database itself.
+- Database schema changes must be introduced through Alembic migrations.
+- Never edit or delete an already shared migration without team coordination.
+- The initial schema supports future workflows; authentication, authorization and transaction-safe donation approval must still be implemented separately.
