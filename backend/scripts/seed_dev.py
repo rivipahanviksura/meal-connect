@@ -82,26 +82,41 @@ def get_or_create_organization(
     session.flush()
     return org
 
-
 def ensure_membership(session, org, user, role):
     existing = session.scalar(
         select(OrganizationMembership).where(
             OrganizationMembership.organization_id
-            == org.organization_id,
-            OrganizationMembership.user_id
-            == user.user_id,
+            == org.organization_id
         )
     )
 
-    if existing is None:
-        session.add(
-            OrganizationMembership(
-                organization_id=org.organization_id,
-                user_id=user.user_id,
-                membership_role=role,
-                member_status=MemberStatus.active,
+    if existing is not None:
+        if existing.user_id != user.user_id:
+            raise RuntimeError(
+                "Development seed refused: organization "
+                "already belongs to another user."
             )
-        )
+
+        if existing.member_status != MemberStatus.active:
+            raise RuntimeError(
+                "Development seed refused: existing "
+                "organization membership is not active."
+            )
+
+        return existing
+
+    membership = OrganizationMembership(
+        organization_id=org.organization_id,
+        user_id=user.user_id,
+        membership_role=role,
+        member_status=MemberStatus.active,
+    )
+
+    session.add(membership)
+    session.flush()
+
+    return membership
+
 
 
 def ensure_donation(session, org, donor):

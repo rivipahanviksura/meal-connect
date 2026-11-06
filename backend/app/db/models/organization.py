@@ -1,6 +1,7 @@
 
 import enum
-from datetime import datetime
+from sqlalchemy.dialects.postgresql import JSONB
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
@@ -13,6 +14,8 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    Date,
+    JSON,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -86,6 +89,38 @@ class Organization(Base):
         String(120)
     )
 
+    registration_authority: Mapped[str | None] = mapped_column(
+        String(180), nullable=True
+    )
+
+    registration_date: Mapped[date | None] = mapped_column(
+        Date, nullable=True
+    )
+
+    registration_expiry_date: Mapped[date | None] = mapped_column(
+        Date, nullable=True
+    )
+
+    representative_name: Mapped[str | None] = mapped_column(
+        String(180), nullable=True
+    )
+
+    representative_designation: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
+    pickup_location: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+
+    operational_details: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True
+    )
+
+    submitted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     verification_status: Mapped[VerificationStatus] = mapped_column(
         Enum(VerificationStatus, name="verification_status"),
         nullable=False,
@@ -112,6 +147,9 @@ class Organization(Base):
         server_default=func.now(),
     )
 
+    operational_details: Mapped[dict | None] = mapped_column(
+        JSONB, nullable=True
+    )
 
 class OrganizationMembership(Base):
     __tablename__ = "organization_memberships"
@@ -121,6 +159,10 @@ class OrganizationMembership(Base):
             "organization_id",
             "user_id",
             name="uq_membership_org_user",
+        ),
+        UniqueConstraint(
+            "organization_id",
+            name="uq_membership_single_account_per_org",
         ),
         Index("ix_membership_user_id", "user_id"),
     )

@@ -14,3 +14,5 @@ from app.db.models.distribution import DistributionRecord
 
 from app.db.models.notification import Notification
 from app.db.models.status_history import StatusHistory
+
+from app.db.models.organization_document import OrganizationDocument
