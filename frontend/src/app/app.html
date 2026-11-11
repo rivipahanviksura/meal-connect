@@ -1,18 +1,32 @@
 
 <div class="app-shell">
-  <header class="app-header">
-    <a class="brand" routerLink="/" aria-label="Meal Connect home">
-      Meal Connect
-    </a>
+  <app-header
+    [isAuthenticated]="navigationSession.isAuthenticated()"
+    [logoutEnabled]="false"
+  />
 
-    <span class="app-label">Surplus Food Coordination</span>
-  </header>
+  @if (navigationSession.session().status === 'loading') {
+    <div class="session-message" role="status" aria-live="polite">
+      Checking account status...
+    </div>
+  }
 
-  <main class="app-main">
-    <router-outlet />
-  </main>
+  @if (navigationSession.session().status === 'error') {
+    <div class="session-message session-error" role="alert">
+      Account information is currently unavailable.
+      Please try again later.
+    </div>
+  }
 
-  <footer class="app-footer">
-    <p>Meal Connect - Local MVP</p>
-  </footer>
+  <div class="app-content">
+    @if (navigationSession.isAuthenticated()) {
+      <app-sidebar [account]="account()" />
+    }
+
+    <main class="app-main" id="main-content">
+      <router-outlet />
+    </main>
+  </div>
+
+  <app-footer />
 </div>

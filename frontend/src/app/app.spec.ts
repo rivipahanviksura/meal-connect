@@ -1,8 +1,9 @@
-import { TestBed } from '@angular/core/testing';
-import { App } from './app';
-import { provideRouter } from '@angular/router';
 
-describe('App', () => {
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { App } from './app';
+
+describe('App - MEAL-71 and MEAL-72 Integration', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
@@ -10,20 +11,47 @@ describe('App', () => {
     }).compileComponents();
   });
 
-  it('should create the app', () => {
+  it('should create the application', () => {
     const fixture = TestBed.createComponent(App);
-    const app = fixture.componentInstance;
-    expect(app).toBeTruthy();
-  });
+    fixture.detectChanges();
 
+    expect(fixture.componentInstance).toBeTruthy();
+  });
 
   it('should render the application router outlet', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
 
-    const compiled = fixture.nativeElement as HTMLElement;
+    const element = fixture.nativeElement as HTMLElement;
 
-    expect(compiled.querySelector('router-outlet')).not.toBeNull();
+    expect(element.querySelector('router-outlet')).not.toBeNull();
   });
 
+  it('should render shared Header and Footer', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('app-header')).not.toBeNull();
+    expect(element.querySelector('app-footer')).not.toBeNull();
+  });
+
+  it('should hide the Sidebar for public users', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('app-sidebar')).toBeNull();
+  });
+
+  it('should render the main content area', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('main#main-content')).not.toBeNull();
+  });
 });
