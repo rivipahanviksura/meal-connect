@@ -1,0 +1,27 @@
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-block: 0;
+}
+
+button {
+  min-height: var(--mc-control-min-height);
+  padding: var(--mc-space-2) var(--mc-space-4);
+  border: 1px solid var(--mc-color-primary);
+  border-radius: var(--mc-radius-sm);
+  background: var(--mc-color-primary);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--mc-color-primary-hover);
+}

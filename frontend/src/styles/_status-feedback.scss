@@ -1,0 +1,206 @@
+
+/* MEAL-72: Verification, pickup and feedback UI patterns */
+
+/* Reusable status badges */
+
+.mc-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mc-space-2);
+  max-width: 100%;
+  min-height: 28px;
+  padding: var(--mc-space-1) var(--mc-space-3);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: var(--mc-font-size-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.mc-status--pending,
+.mc-status--expired {
+  color: #78350f;
+  background: #fef3c7;
+  border-color: #fcd34d;
+}
+
+.mc-status--approved,
+.mc-status--success,
+.mc-status--completed {
+  color: #14532d;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.mc-status--rejected,
+.mc-status--error {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.mc-status--loading,
+.mc-status--info {
+  color: #1e40af;
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+/* Feedback messages */
+
+.mc-feedback {
+  width: 100%;
+  min-width: 0;
+  padding: var(--mc-space-4);
+  border: 1px solid var(--mc-color-border);
+  border-radius: var(--mc-radius-md);
+  background: var(--mc-color-surface);
+  overflow-wrap: anywhere;
+}
+
+.mc-feedback__title {
+  margin: 0 0 var(--mc-space-2);
+  font-weight: 700;
+}
+
+.mc-feedback__message {
+  margin: 0;
+}
+
+.mc-feedback--success {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #14532d;
+}
+
+.mc-feedback--error {
+  border-color: #fca5a5;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.mc-feedback--warning {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.mc-feedback--info,
+.mc-feedback--loading {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+/* NGO pickup PIN display */
+
+.mc-pin-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  padding: var(--mc-space-4);
+  border: 2px solid var(--mc-color-border);
+  border-radius: var(--mc-radius-md);
+  background: var(--mc-color-surface);
+}
+
+.mc-pin-display__code {
+  max-width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: clamp(1.5rem, 7vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: clamp(0.05em, 1vw, 0.18em);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+/* Restaurant pickup PIN entry */
+
+.mc-pin-entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-3);
+  width: 100%;
+  min-width: 0;
+}
+
+.mc-pin-entry__input {
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  padding: var(--mc-space-3);
+  border: 1px solid var(--mc-color-border);
+  border-radius: var(--mc-radius-sm);
+  background: var(--mc-color-surface);
+  color: var(--mc-color-text);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: clamp(1.25rem, 5vw, 1.75rem);
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+
+.mc-pin-entry__input[aria-invalid="true"] {
+  border-color: var(--mc-color-danger);
+}
+
+.mc-pin-entry__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-3);
+}
+
+.mc-pin-entry__actions > button {
+  min-height: var(--mc-control-min-height);
+}
+
+/* Pickup and distribution remain separate stages */
+
+.mc-workflow-stages {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mc-space-3);
+}
+
+.mc-workflow-stage {
+  min-width: 0;
+  padding: var(--mc-space-4);
+  border: 1px solid var(--mc-color-border);
+  border-radius: var(--mc-radius-md);
+  background: var(--mc-color-surface);
+}
+
+.mc-workflow-stage__title {
+  margin: 0 0 var(--mc-space-2);
+  font-weight: 700;
+}
+
+.mc-workflow-stage__description {
+  margin: 0;
+  color: var(--mc-color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.mc-workflow-stage[data-state="complete"] {
+  border-color: #86efac;
+}
+
+.mc-workflow-stage[data-state="current"] {
+  border-color: var(--mc-focus-color);
+}
+
+@media (min-width: 768px) {
+  .mc-pin-entry__actions {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  .mc-workflow-stages {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
