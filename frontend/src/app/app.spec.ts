@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { App } from './app';
 
-describe('App – MEAL-71', () => {
+describe('App - MEAL-71 and MEAL-72 Integration', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
@@ -16,6 +16,15 @@ describe('App – MEAL-71', () => {
     fixture.detectChanges();
 
     expect(fixture.componentInstance).toBeTruthy();
+  });
+
+  it('should render the application router outlet', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(element.querySelector('router-outlet')).not.toBeNull();
   });
 
   it('should render shared Header and Footer', () => {
