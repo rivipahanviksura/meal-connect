@@ -5,15 +5,22 @@ from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-# backend directory
+# Backend directory
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    # Optional until database and authentication are implemented.
-    # Each feature must validate its required configuration before use.
+    # Database configuration
     database_url: SecretStr | None = None
+
+    # JWT secret key
     secret_key: SecretStr | None = None
+
+    # JWT configuration
+    jwt_algorithm: str = "HS256"
+
+    # Access token expiration time (30 minutes)
+    access_token_expire_minutes: int = 30
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
