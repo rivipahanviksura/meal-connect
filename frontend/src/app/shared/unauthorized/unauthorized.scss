@@ -1,0 +1,52 @@
+
+.unauthorized {
+  max-width: 640px;
+  margin: 2rem auto;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.error-code {
+  color: #b91c1c;
+  font-size: clamp(3rem, 10vw, 5rem);
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.unauthorized h1 {
+  margin: 1rem 0;
+  color: #1f2937;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+.unauthorized p {
+  color: #475569;
+  line-height: 1.6;
+}
+
+.home-link {
+  display: inline-block;
+  margin-top: 1.5rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.5rem;
+  background-color: #166534;
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.home-link:hover {
+  background-color: #14532d;
+}
+
+.home-link:focus-visible {
+  outline: 3px solid #15803d;
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .unauthorized {
+    margin: 1rem auto;
+    padding: 1.5rem 0.75rem;
+  }
+}

@@ -1,0 +1,24 @@
+
+@if (visible()) {
+  <aside class="sidebar" aria-label="Account sidebar">
+    <div class="sidebar-heading">
+      <h2>Menu</h2>
+    </div>
+
+    <nav aria-label="Account navigation">
+      <ul class="navigation-list">
+        @for (item of items(); track item.path) {
+          <li>
+            <a
+              [routerLink]="item.path"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="{ exact: true }"
+            >
+              {{ item.label }}
+            </a>
+          </li>
+        }
+      </ul>
+    </nav>
+  </aside>
+}

@@ -1,0 +1,35 @@
+
+.unavailable {
+  max-width: 640px;
+  margin: 2rem auto;
+  text-align: center;
+}
+
+.unavailable h1 {
+  color: #166534;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+.unavailable p {
+  color: #475569;
+  line-height: 1.6;
+}
+
+.home-link {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  color: #ffffff;
+  background: #166534;
+  border-radius: 0.5rem;
+  text-decoration: none;
+}
+
+.home-link:hover {
+  background: #14532d;
+}
+
+.home-link:focus-visible {
+  outline: 3px solid #15803d;
+  outline-offset: 3px;
+}

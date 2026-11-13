@@ -1,0 +1,36 @@
+
+<header class="site-header">
+  <a class="brand" routerLink="/" aria-label="Meal Connect home">
+    Meal Connect
+  </a>
+
+  <nav class="public-nav" aria-label="Primary navigation">
+    <a
+      routerLink="/"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
+    >
+      Home
+    </a>
+
+    @if (!isAuthenticated()) {
+      <a routerLink="/login" routerLinkActive="active">
+        Login
+      </a>
+
+      <a routerLink="/register" routerLinkActive="active">
+        Register
+      </a>
+    } @else {
+      <button
+        type="button"
+        class="logout-button"
+        [disabled]="!logoutEnabled()"
+        [attr.aria-label]="logoutEnabled() ? 'Logout' : 'Logout unavailable'"
+        (click)="requestLogout()"
+      >
+        Logout
+      </button>
+    }
+  </nav>
+</header>
