@@ -24,7 +24,10 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 def needs_rehash(stored_hash: str) -> bool:
     """Check whether the stored hash uses outdated settings."""
-    return password_hasher.check_needs_rehash(stored_hash)
+    try:
+        return password_hasher.check_needs_rehash(stored_hash)
+    except (InvalidHashError, TypeError, ValueError):
+        raise ValueError("Invalid stored password hash") from None
 
 
 def verify_and_update(

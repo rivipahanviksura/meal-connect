@@ -1,4 +1,5 @@
-
+import pytest
+from argon2 import PasswordHasher
 from app.core.security import (
     hash_password,
     verify_password,
@@ -67,3 +68,30 @@ def test_wrong_password_no_rehash():
 
     assert verified is False
     assert new_hash is None
+
+
+def test_outdated_hash_requires_rehash():
+    old_hasher = PasswordHasher(
+        time_cost=1,
+        memory_cost=1024,
+        parallelism=1,
+    )
+
+    password = "TestPassword@123"
+    old_hash = old_hasher.hash(password)
+
+    assert needs_rehash(old_hash) is True
+
+    verified, new_hash = verify_and_update(password, old_hash)
+
+    assert verified is True
+    assert new_hash is not None
+    assert new_hash != old_hash
+    assert verify_password(password, new_hash) is True
+    assert needs_rehash(new_hash) is False
+
+
+def test_malformed_hash_rehash_handling():
+    with pytest.raises(ValueError, match="Invalid stored password hash"):
+        needs_rehash("invalid-hash")
+
