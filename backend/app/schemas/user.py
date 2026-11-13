@@ -31,3 +31,8 @@ class UserResponse(BaseModel):
     phone: str | None
     role: UserRole
     account_status: AccountStatus
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse

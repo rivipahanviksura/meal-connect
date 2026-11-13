@@ -7,3 +7,5 @@ sqlalchemy
 alembic
 psycopg[binary]
 email-validator
+PyJWT==2.15.1
+argon2-cffi==25.1.0

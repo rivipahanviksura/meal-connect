@@ -65,11 +65,24 @@ Implemented:
 - Versioned API router
 - Health endpoint
 - Local CORS configuration
-- Health endpoint automated test
+- JWT-based authentication
+- Password hashing using Argon2id
+- Login endpoint
+- Access tokens with 30-minute expiration
+- Authentication and authorization dependencies
+- Automated tests for authentication and authorization
+
+Authentication:
+- Login endpoint: POST /api/v1/auth/login
+- Authentication scheme: Bearer token
+- Token algorithm: HS256
+- Access token expiration: 30 minutes
+- Logout: Client-side access token removal
+- Refresh tokens are not used.
 
 Pending:
 - PostgreSQL database integration
-- Authentication and role-based authorization
+- Real database login integration testing
 - Organization and donation endpoints
 
 The project uses localhost development without Docker.
