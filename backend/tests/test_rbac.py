@@ -99,3 +99,48 @@ def test_other_ngo_distribution_blocked():
 def test_distribution_before_collection_blocked():
     with pytest.raises(HTTPException):
         require_distribution_access(5, 5, "scheduled")
+
+
+def test_suspended_restaurant_blocked():
+    with pytest.raises(HTTPException) as error:
+        require_restaurant(
+            "restaurant", "suspended", "restaurant", "approved"
+        )
+    assert error.value.status_code == 403
+
+
+def test_rejected_ngo_blocked():
+    with pytest.raises(HTTPException) as error:
+        require_ngo(
+            "ngo", "active", "ngo", "rejected"
+        )
+    assert error.value.status_code == 403
+
+
+def test_restaurant_cannot_use_ngo_role():
+    with pytest.raises(HTTPException) as error:
+        require_ngo(
+            "restaurant", "active", "restaurant", "approved"
+        )
+    assert error.value.status_code == 403
+
+
+def test_wrong_organization_type_blocked():
+    with pytest.raises(HTTPException) as error:
+        require_restaurant(
+            "restaurant", "active", "ngo", "approved"
+        )
+    assert error.value.status_code == 403
+
+
+def test_rejected_pickup_request_blocked():
+    with pytest.raises(HTTPException) as error:
+        require_pickup_verification(1, 1, "rejected")
+    assert error.value.status_code == 403
+
+
+def test_cancelled_pickup_distribution_blocked():
+    with pytest.raises(HTTPException) as error:
+        require_distribution_access(5, 5, "cancelled")
+    assert error.value.status_code == 403
+
