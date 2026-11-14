@@ -3,6 +3,13 @@ from datetime import datetime, timezone
 from app.db.models.donation import Donation, DonationStatus
 
 
+def as_utc(value: datetime, *, field_name: str) -> datetime:
+    if value.utcoffset() is None:
+        raise ValueError(f"{field_name} must include a timezone")
+
+    return value.astimezone(timezone.utc)
+
+
 def has_pickup_deadline_passed(
     pickup_deadline: datetime,
     *,
@@ -10,13 +17,16 @@ def has_pickup_deadline_passed(
 ) -> bool:
     current_time = now if now is not None else datetime.now(timezone.utc)
 
-    if pickup_deadline.utcoffset() is None:
-        raise ValueError("pickup_deadline must include a timezone")
+    deadline_utc = as_utc(
+        pickup_deadline,
+        field_name="pickup_deadline",
+    )
+    current_utc = as_utc(
+        current_time,
+        field_name="now",
+    )
 
-    if current_time.utcoffset() is None:
-        raise ValueError("now must include a timezone")
-
-    return current_time >= pickup_deadline
+    return current_utc >= deadline_utc
 
 
 def is_donation_requestable(
@@ -30,7 +40,22 @@ def is_donation_requestable(
     }:
         return False
 
-    if has_pickup_deadline_passed(donation.pickup_deadline, now=now):
+    current_time = now if now is not None else datetime.now(timezone.utc)
+
+    current_utc = as_utc(
+        current_time,
+        field_name="now",
+    )
+    available_from_utc = as_utc(
+        donation.available_from,
+        field_name="available_from",
+    )
+    deadline_utc = as_utc(
+        donation.pickup_deadline,
+        field_name="pickup_deadline",
+    )
+
+    if not available_from_utc <= current_utc < deadline_utc:
         return False
 
     return donation.allocated_quantity < donation.total_quantity

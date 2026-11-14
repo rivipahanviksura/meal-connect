@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -18,6 +19,7 @@ NOW = datetime(2026, 11, 14, 10, 0, tzinfo=timezone.utc)
 def make_donation(**changes):
     values = {
         "status": DonationStatus.available,
+        "available_from": NOW - timedelta(hours=1),
         "pickup_deadline": NOW + timedelta(hours=1),
         "total_quantity": Decimal("10.00"),
         "allocated_quantity": Decimal("0.00"),
@@ -142,9 +144,96 @@ def test_expiry_guard_rejects_at_or_after_deadline(offset_seconds):
 
 
 def test_expiry_guard_rejects_expired_status_with_future_deadline():
-    donation = make_donation(
-        status=DonationStatus.expired
-    )
+    donation = make_donation(status=DonationStatus.expired)
 
     with pytest.raises(DonationExpiredError):
         ensure_donation_not_expired(donation, now=NOW)
+
+
+# Review fix: respect the availability start time.
+def test_donation_is_not_requestable_just_before_available_from():
+    donation = make_donation(available_from=NOW)
+
+    assert is_donation_requestable(
+        donation,
+        now=NOW - timedelta(microseconds=1),
+    ) is False
+
+
+def test_donation_is_requestable_exactly_at_available_from():
+    donation = make_donation(available_from=NOW)
+
+    assert is_donation_requestable(donation, now=NOW) is True
+
+
+def test_available_from_without_timezone_is_rejected():
+    donation = make_donation(
+        available_from=NOW.replace(tzinfo=None)
+    )
+
+    with pytest.raises(ValueError, match="available_from"):
+        is_donation_requestable(donation, now=NOW)
+
+
+# Review fix: the repeated DST hour represents different UTC instants.
+def repeated_hour_times():
+    new_york = ZoneInfo("America/New_York")
+
+    earlier = datetime(
+        2026, 11, 1, 1, 30,
+        tzinfo=new_york,
+        fold=0,
+    )
+    later = datetime(
+        2026, 11, 1, 1, 30,
+        tzinfo=new_york,
+        fold=1,
+    )
+
+    return earlier, later
+
+
+def test_dst_earlier_occurrence_is_before_deadline():
+    earlier, deadline = repeated_hour_times()
+
+    assert has_pickup_deadline_passed(
+        deadline,
+        now=earlier,
+    ) is False
+
+
+def test_dst_later_occurrence_is_at_deadline():
+    _, deadline = repeated_hour_times()
+
+    assert has_pickup_deadline_passed(
+        deadline,
+        now=deadline,
+    ) is True
+
+
+def test_requestability_during_repeated_dst_hour():
+    earlier, deadline = repeated_hour_times()
+
+    donation = make_donation(
+        available_from=datetime(
+            2026, 11, 1, 5, 0,
+            tzinfo=timezone.utc,
+        ),
+        pickup_deadline=deadline,
+    )
+
+    assert is_donation_requestable(donation, now=earlier) is True
+    assert is_donation_requestable(donation, now=deadline) is False
+
+
+def test_available_from_during_repeated_dst_hour():
+    earlier, later = repeated_hour_times()
+
+    donation = make_donation(
+        available_from=later,
+        pickup_deadline=later.astimezone(timezone.utc)
+        + timedelta(hours=1),
+    )
+
+    assert is_donation_requestable(donation, now=earlier) is False
+    assert is_donation_requestable(donation, now=later) is True
