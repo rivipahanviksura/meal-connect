@@ -1,0 +1,263 @@
+
+<section class="mc-container mc-section mc-stack"
+         aria-labelledby="preview-title">
+
+  <header class="mc-stack">
+    <h1 id="preview-title">Responsive UI Preview</h1>
+    <p>
+      MEAL-72 styling demonstration using sample data only.
+    </p>
+  </header>
+
+  <section class="mc-stack" aria-labelledby="form-title">
+    <h2 id="form-title">Registration Form</h2>
+
+    <form class="mc-form mc-container--form"
+          (submit)="$event.preventDefault()">
+
+      <ol class="mc-form-progress"
+          aria-label="Registration steps">
+        <li class="mc-form-progress__step">
+          Account Details
+        </li>
+        <li class="mc-form-progress__step"
+            aria-current="step">
+          Organization Details
+        </li>
+        <li class="mc-form-progress__step">
+          Documents
+        </li>
+        <li class="mc-form-progress__step">
+          Review
+        </li>
+      </ol>
+
+      <div class="mc-form-grid">
+        <div class="mc-field">
+          <label class="mc-field__label" for="preview-org">
+            Organization Name
+          </label>
+          <input
+            class="mc-field__input"
+            id="preview-org"
+            type="text"
+            value="Sample Community Food Organization"
+            aria-describedby="preview-org-hint"
+          />
+
+          <p class="mc-field__hint" id="preview-org-hint">
+            Enter the registered name of your organization.
+          </p>
+
+        </div>
+
+        <div class="mc-field">
+          <label class="mc-field__label" for="preview-type">
+            Organization Type
+          </label>
+          <select class="mc-field__select" id="preview-type">
+            <option>Restaurant / Food Business</option>
+            <option>NGO / Charity</option>
+          </select>
+        </div>
+
+
+        <div class="mc-field mc-field--full">
+          <label class="mc-field__label" for="preview-reference">
+            Registration Reference (Validation Example)
+          </label>
+
+          <input
+            class="mc-field__input"
+            id="preview-reference"
+            type="text"
+            aria-invalid="true"
+            aria-describedby="preview-reference-error"
+          />
+
+          <p
+            class="mc-field__error"
+            id="preview-reference-error"
+          >
+            A registration reference is required.
+          </p>
+        </div>
+
+        <div class="mc-field mc-field--full">
+          <label class="mc-field__label" for="preview-address">
+            Address
+          </label>
+          <textarea
+            class="mc-field__textarea"
+            id="preview-address"
+          ></textarea>
+        </div>
+
+        <div class="mc-file-upload mc-field--full">
+          <label class="mc-field__label" for="preview-document">
+            Organization Document
+          </label>
+          <input id="preview-document" type="file" />
+          <p class="mc-field__hint">
+            Demonstration only. Files are not uploaded.
+          </p>
+        </div>
+      </div>
+
+      <div class="mc-form-actions">
+        <button type="button">Back</button>
+        <button type="button">Next</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="mc-stack" aria-labelledby="cards-title">
+    <h2 id="cards-title">Dashboard Cards</h2>
+
+    <div class="mc-card-grid mc-card-grid--three">
+      <article class="mc-card">
+        <div class="mc-stat">
+          <span class="mc-stat__label">Available Donations</span>
+          <span class="mc-stat__value">12</span>
+        </div>
+      </article>
+
+      <article class="mc-card">
+        <div class="mc-stat">
+          <span class="mc-stat__label">Pending Requests</span>
+          <span class="mc-stat__value">5</span>
+        </div>
+      </article>
+
+      <article class="mc-card">
+        <div class="mc-stat">
+          <span class="mc-stat__label">Completed Handovers</span>
+          <span class="mc-stat__value">8</span>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="mc-stack" aria-labelledby="table-title">
+    <h2 id="table-title">Donation Records</h2>
+
+    <div class="mc-table-scroll"
+         role="region"
+         aria-label="Sample donation records"
+         tabindex="0">
+      <table class="mc-table">
+        <caption class="mc-sr-only">
+          Sample donation records
+        </caption>
+        <thead>
+        <tr>
+          <th scope="col">Donation</th>
+          <th scope="col">Organization</th>
+          <th scope="col">Quantity</th>
+          <th scope="col">Status</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td>Food Package A</td>
+          <td>Sample Restaurant</td>
+          <td>20</td>
+          <td>
+              <span class="mc-status mc-status--pending">
+                Pending
+              </span>
+          </td>
+        </tr>
+        <tr>
+          <td>Food Package B</td>
+          <td>Sample Food Business</td>
+          <td>15</td>
+          <td>
+              <span class="mc-status mc-status--approved">
+                Approved
+              </span>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="mc-stack" aria-labelledby="pickup-title">
+    <h2 id="pickup-title">Pickup UI</h2>
+
+    <div class="mc-card-grid">
+      <article class="mc-card mc-stack">
+        <h3 class="mc-card__title">NGO Pickup PIN Display</h3>
+        <div class="mc-pin-display">
+          <span class="mc-pin-display__code">••••••</span>
+        </div>
+        <p class="mc-field__hint">
+          Placeholder only. No real PIN is shown.
+        </p>
+      </article>
+
+      <article class="mc-card mc-stack">
+        <h3 class="mc-card__title">Restaurant PIN Entry</h3>
+        <div class="mc-pin-entry">
+          <label class="mc-field__label" for="preview-pin">
+            Six-digit Pickup PIN
+          </label>
+          <input
+            class="mc-pin-entry__input"
+            id="preview-pin"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            maxlength="6"
+            placeholder="Enter PIN"
+          />
+          <div class="mc-pin-entry__actions">
+            <button type="button">Verify PIN</button>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div class="mc-workflow-stages">
+      <div class="mc-workflow-stage" data-state="complete">
+        <h3 class="mc-workflow-stage__title">
+          Food Handover
+        </h3>
+        <p class="mc-workflow-stage__description">
+          Restaurant confirms that food was handed over.
+        </p>
+      </div>
+
+      <div class="mc-workflow-stage" data-state="current">
+        <h3 class="mc-workflow-stage__title">
+          Food Distribution
+        </h3>
+        <p class="mc-workflow-stage__description">
+          NGO records distribution separately.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="mc-stack" aria-labelledby="feedback-title">
+    <h2 id="feedback-title">Feedback States</h2>
+
+    <div class="mc-feedback mc-feedback--loading" role="status">
+      Loading verification details...
+    </div>
+
+    <div class="mc-feedback mc-feedback--success">
+      Verification successful.
+    </div>
+
+    <div class="mc-feedback mc-feedback--error">
+      PIN verification failed.
+    </div>
+
+    <div class="mc-feedback mc-feedback--warning">
+      Pickup PIN expired.
+    </div>
+  </section>
+
+</section>

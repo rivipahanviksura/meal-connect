@@ -1,0 +1,65 @@
+
+:root {
+  /* Brand colors */
+  --mc-color-primary: #166534;
+  --mc-color-primary-hover: #14532d;
+  --mc-color-primary-soft: #dcfce7;
+
+  /* Surface colors */
+  --mc-color-background: #f8fafc;
+  --mc-color-surface: #ffffff;
+  --mc-color-surface-muted: #f1f5f9;
+
+  /* Text colors */
+  --mc-color-text: #0f172a;
+  --mc-color-text-muted: #475569;
+
+  /* Borders */
+  --mc-color-border: #cbd5e1;
+
+  /* Semantic colors */
+  --mc-color-success: #166534;
+  --mc-color-warning: #92400e;
+  --mc-color-danger: #b91c1c;
+  --mc-color-info: #1d4ed8;
+
+  /* Spacing scale */
+  --mc-space-1: 0.25rem;
+  --mc-space-2: 0.5rem;
+  --mc-space-3: 0.75rem;
+  --mc-space-4: 1rem;
+  --mc-space-5: 1.25rem;
+  --mc-space-6: 1.5rem;
+  --mc-space-8: 2rem;
+  --mc-space-10: 2.5rem;
+
+  /* Typography */
+  --mc-font-family: system-ui, -apple-system, BlinkMacSystemFont,
+  "Segoe UI", sans-serif;
+
+  --mc-font-size-sm: 0.875rem;
+  --mc-font-size-base: 1rem;
+  --mc-font-size-lg: 1.125rem;
+  --mc-font-size-xl: 1.25rem;
+
+  --mc-line-height: 1.5;
+
+  /* Border radius */
+  --mc-radius-sm: 0.375rem;
+  --mc-radius-md: 0.625rem;
+  --mc-radius-lg: 1rem;
+
+  /* Layout */
+  --mc-content-max-width: 1200px;
+  --mc-form-max-width: 720px;
+
+  /* Touch targets */
+  --mc-control-min-height: 44px;
+
+  /* Focus */
+  --mc-focus-color: #2563eb;
+  --mc-focus-width: 3px;
+
+  /* Transitions */
+  --mc-transition-fast: 150ms ease;
+}
