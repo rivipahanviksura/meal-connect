@@ -1,4 +1,3 @@
-
 from collections.abc import Generator
 
 from sqlalchemy import create_engine
@@ -9,9 +8,7 @@ from app.core.config import settings
 
 def get_engine():
     if settings.database_url is None:
-        raise RuntimeError(
-            "DATABASE_URL is not configured."
-        )
+        raise RuntimeError("DATABASE_URL is not configured.")
 
     database_url = settings.database_url.get_secret_value()
 
@@ -37,11 +34,16 @@ def get_session_factory():
 
 
 def get_db() -> Generator[Session, None, None]:
-    SessionLocal = get_session_factory()
-
+    engine = get_engine()
+    SessionLocal = sessionmaker(
+        bind=engine,
+        autoflush=False,
+        autocommit=False,
+    )
     db = SessionLocal()
 
     try:
         yield db
     finally:
         db.close()
+        engine.dispose()
