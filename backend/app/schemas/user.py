@@ -41,3 +41,21 @@ class UserResponse(BaseModel):
 
 class RegistrationResponse(BaseModel):
     data: UserResponse
+
+
+class LoginUserSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: int
+    email: EmailStr
+    role: Literal["admin", "business_staff", "ngo_staff"]
+
+
+class LoginResponse(BaseModel):
+    class Data(BaseModel):
+        access_token: str
+        token_type: Literal["bearer"] = "bearer"
+        expires_in: int = Field(gt=0)
+        user: LoginUserSummary
+
+    data: Data
