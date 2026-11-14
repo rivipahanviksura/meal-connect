@@ -1,3 +1,4 @@
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -13,6 +14,8 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     phone: str | None = Field(default=None, max_length=25)
 
+class RegistrationRequest(UserCreate):
+    account_type: Literal["business", "ngo"]
 
 class LoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -31,3 +34,18 @@ class UserResponse(BaseModel):
     phone: str | None
     role: UserRole
     account_status: AccountStatus
+
+class LoginUserSummary(BaseModel):
+    user_id: int
+    email: EmailStr
+    role: Literal["admin", "business_staff", "ngo_staff"]
+
+
+class LoginResponse(BaseModel):
+    class Data(BaseModel):
+        access_token: str
+        token_type: Literal["bearer"] = "bearer"
+        expires_in: int = Field(gt=0)
+        user: LoginUserSummary
+
+    data: Data
