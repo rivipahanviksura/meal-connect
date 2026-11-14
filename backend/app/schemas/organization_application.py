@@ -34,3 +34,27 @@ class ApplicationDraft(BaseModel):
     application_id: int
     organization_id: int
     status: Literal["draft"] = "draft"
+
+
+class ApplicationDraftResponse(BaseModel):
+    data: ApplicationDraft
+
+
+class ApplicationSummary(BaseModel):
+    application_id: int
+    organization_id: int
+    name: str
+    status: Literal["draft", "pending_verification", "verified", "rejected", "suspended"]
+    review_note: str | None = None
+
+
+class ApplicationPagination(BaseModel):
+    page: Literal[1] = 1
+    page_size: Literal[20] = 20
+    total_items: Literal[0, 1]
+    total_pages: Literal[0, 1]
+
+
+class ApplicationListResponse(BaseModel):
+    data: list[ApplicationSummary]
+    pagination: ApplicationPagination
