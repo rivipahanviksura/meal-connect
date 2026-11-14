@@ -58,3 +58,29 @@ class ApplicationPagination(BaseModel):
 class ApplicationListResponse(BaseModel):
     data: list[ApplicationSummary]
     pagination: ApplicationPagination
+
+
+DocumentType = Literal["registration_certificate", "representative_authorization", "supporting_document"]
+
+
+class ApplicationDocument(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    document_id: int
+    document_type: DocumentType
+    content_type: str
+    file_size_bytes: int
+
+
+class ApplicationDocumentResponse(BaseModel):
+    data: ApplicationDocument
+
+
+class ApplicationSubmitted(BaseModel):
+    application_id: int
+    organization_id: int
+    status: Literal["pending_verification"] = "pending_verification"
+
+
+class ApplicationSubmittedResponse(BaseModel):
+    data: ApplicationSubmitted
