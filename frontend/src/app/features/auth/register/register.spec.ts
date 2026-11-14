@@ -312,7 +312,10 @@ describe('Register', () => {
     http.verify();
   }
 
-  it('retries only the failed document upload on the existing draft', () => {
+  it.each([
+    { status: 503, statusText: 'Service Unavailable' },
+    { status: 422, statusText: 'Unprocessable Entity' },
+  ])('retries only the failed document upload on the existing draft after $status', ({ status, statusText }) => {
     const page = fixture.nativeElement as HTMLElement;
     const http = TestBed.inject(HttpTestingController);
     const authorization = new File(['test authorization'], 'authorization.pdf', {
@@ -344,7 +347,7 @@ describe('Register', () => {
           fields: [],
         },
       },
-      { status: 503, statusText: 'Service Unavailable' },
+      { status, statusText },
     );
     fixture.detectChanges();
 
@@ -353,6 +356,42 @@ describe('Register', () => {
     const alerts = Array.from(page.querySelectorAll('[role="alert"]'));
     expect(alerts.map((alert) => alert.textContent?.trim()))
       .toContain('The document upload failed. Please try again.');
+
+    let fileToRetry = authorization;
+    if (status === 422) {
+      const findButton = (label: string) => Array.from(page.querySelectorAll('button')).find(
+        (button) => button.textContent?.trim() === label,
+      );
+
+      expect(findButton('Back to Documents')?.disabled).toBe(false);
+      findButton('Back to Documents')!.click();
+      fixture.detectChanges();
+
+      expect(findButton('Back')?.disabled).toBe(true);
+      expect(page.querySelector<HTMLInputElement>('#registrationCertificate')?.disabled)
+        .toBe(true);
+      expect(page.querySelector<HTMLButtonElement>('[aria-label="Remove registration certificate"]')?.disabled)
+        .toBe(true);
+
+      const input = page.querySelector<HTMLInputElement>('#representativeAuthorization')!;
+      expect(input.disabled).toBe(false);
+      expect(page.querySelector<HTMLButtonElement>('[aria-label="Remove authorization document"]')?.disabled)
+        .toBe(false);
+
+      const replacement = new File(['corrected authorization'], 'corrected.pdf', {
+        type: 'application/pdf',
+      });
+      Object.defineProperty(input, 'files', {
+        value: { item: (index: number) => index === 0 ? replacement : null },
+      });
+      input.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(page.textContent).toContain('corrected.pdf');
+      fileToRetry = replacement;
+      findButton('Continue to Review')!.click();
+      fixture.detectChanges();
+    }
 
     const retryButton = Array.from(page.querySelectorAll('button')).find(
       (button) => button.textContent?.trim() === 'Submit Application',
@@ -384,7 +423,7 @@ describe('Register', () => {
     expect(retriedUpload.request.headers.get('Authorization'))
       .toBe('Bearer retry-access-token');
     expect(retryBody.get('document_type')).toBe('representative_authorization');
-    expect(retryBody.get('file')).toBe(authorization);
+    expect(retryBody.get('file')).toBe(fileToRetry);
     http.expectNone(submitEndpoint);
 
     retriedUpload.flush(null, { status: 201, statusText: 'Created' });

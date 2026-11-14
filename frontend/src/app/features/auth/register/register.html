@@ -840,6 +840,7 @@
             <input
               id="registrationCertificate"
               type="file"
+              [disabled]="isDocumentUploaded('registration_certificate')"
               accept=".pdf,.jpg,.jpeg,.png"
               (change)="onDocumentSelected(
           $event,
@@ -858,6 +859,7 @@
                     type="button"
                     class="remove-document"
                     (click)="removeDocument('registration_certificate')"
+                    [disabled]="isDocumentUploaded('registration_certificate')"
                     aria-label="Remove registration certificate">
                     Remove
                   </button>
@@ -882,6 +884,7 @@
             <input
               id="representativeAuthorization"
               type="file"
+              [disabled]="isDocumentUploaded('representative_authorization')"
               accept=".pdf,.jpg,.jpeg,.png"
               (change)="onDocumentSelected(
           $event,
@@ -897,6 +900,7 @@
                     type="button"
                     class="remove-document"
                     (click)="removeDocument('representative_authorization')"
+                    [disabled]="isDocumentUploaded('representative_authorization')"
                     aria-label="Remove authorization document">
                     Remove
                   </button>
@@ -927,6 +931,7 @@
             <input
               id="supportingDocument"
               type="file"
+              [disabled]="isDocumentUploaded('supporting_document')"
               accept=".pdf,.jpg,.jpeg,.png"
               (change)="onDocumentSelected(
           $event,
@@ -942,6 +947,7 @@
                     type="button"
                     class="remove-document"
                     (click)="removeDocument('supporting_document')"
+                    [disabled]="isDocumentUploaded('supporting_document')"
                     aria-label="Remove supporting document">
                     Remove
                   </button>
@@ -970,7 +976,8 @@
             <button
               type="button"
               class="secondary-action"
-              (click)="backToOrganizationDetails()">
+              (click)="backToOrganizationDetails()"
+              [disabled]="accountCreated() || isSubmittingApplication()">
               Back
             </button>
 
@@ -1243,7 +1250,7 @@
               type="button"
               class="secondary-action"
               (click)="backToDocuments()"
-              [disabled]="isSubmittingApplication() || accountCreated()">
+              [disabled]="isSubmittingApplication()">
               Back to Documents
             </button>
 

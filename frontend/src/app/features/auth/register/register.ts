@@ -274,6 +274,9 @@ export class Register {
     event: Event,
     documentType: VerificationDocumentType
   ): void {
+    if (this.isSubmittingApplication() || this.isDocumentUploaded(documentType)) {
+      return;
+    }
     const input = event.target as HTMLInputElement;
     const file = input.files?.item(0);
 
@@ -341,6 +344,9 @@ export class Register {
   }
 
   removeDocument(documentType: VerificationDocumentType): void {
+    if (this.isSubmittingApplication() || this.isDocumentUploaded(documentType)) {
+      return;
+    }
     this.selectedDocuments.update(documents =>
       documents.filter(document => document.type !== documentType)
     );
@@ -578,6 +584,13 @@ export class Register {
   readonly draftApplicationId = signal<number | null>(null);
 
   private readonly uploadedDocuments = new Set<SelectedVerificationDocument>();
+
+  isDocumentUploaded(documentType: VerificationDocumentType): boolean {
+    return this.selectedDocuments().some(
+      (document) =>
+        document.type === documentType && this.uploadedDocuments.has(document),
+    );
+  }
 
   submitApplication(): void {
     if (
