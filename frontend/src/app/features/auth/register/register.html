@@ -1,0 +1,1266 @@
+@if (applicationSubmitted()) {
+  <section class="register-page" aria-labelledby="application-status-title">
+    <div class="register-container">
+      <h1 id="application-status-title">Pending Verification</h1>
+      <p role="status">Application submitted. Pending Verification.</p>
+      <p>Your organization application is awaiting admin review.</p>
+    </div>
+  </section>
+} @else {
+  <section class="register-page" aria-labelledby="register-title">
+    <div class="register-container">
+      <header class="register-heading">
+        <p class="eyebrow">Meal Connect</p>
+        <h1 id="register-title">Create your organization account</h1>
+        <p>Complete the registration process for your organization.</p>
+      </header>
+
+      <ol
+        class="registration-progress mc-form-progress"
+        aria-label="Registration progress">
+
+        <li
+          class="mc-form-progress__step"
+          [class.active]="currentStep() === 0"
+          [attr.aria-current]="currentStep() === 0 ? 'step' : null">
+          Account Type
+        </li>
+
+        <li
+          class="mc-form-progress__step"
+          [class.active]="currentStep() === 1"
+          [attr.aria-current]="currentStep() === 1 ? 'step' : null">
+          Account Details
+        </li>
+
+        <li
+          class="mc-form-progress__step"
+          [class.active]="currentStep() === 2"
+          [attr.aria-current]="currentStep() === 2 ? 'step' : null">
+          Organization
+        </li>
+
+        <li
+          class="mc-form-progress__step"
+          [class.active]="currentStep() === 3"
+          [attr.aria-current]="currentStep() === 3 ? 'step' : null">
+          Documents
+        </li>
+
+        <li
+          class="mc-form-progress__step"
+          [class.active]="currentStep() === 4"
+          [attr.aria-current]="currentStep() === 4 ? 'step' : null">
+          Review
+        </li>
+      </ol>
+
+      @if (currentStep() === 0) {
+        <div class="account-types" role="group"
+             aria-label="Organization account type">
+
+          <button
+            type="button"
+            class="account-type-card"
+            [class.selected]="selectedAccountType() === 'business'"
+            [attr.aria-pressed]="selectedAccountType() === 'business'"
+            (click)="selectAccountType('business')">
+          <span class="account-type-title">
+            Restaurant / Food Business
+          </span>
+            <span class="account-type-description">
+            Register a restaurant, bakery or eligible food business
+            to share surplus food.
+          </span>
+          </button>
+
+          <button
+            type="button"
+            class="account-type-card"
+            [class.selected]="selectedAccountType() === 'ngo'"
+            [attr.aria-pressed]="selectedAccountType() === 'ngo'"
+            (click)="selectAccountType('ngo')">
+          <span class="account-type-title">
+            NGO / Charity Organization
+          </span>
+            <span class="account-type-description">
+            Register an NGO or charity organization
+            to coordinate food distribution.
+          </span>
+          </button>
+        </div>
+
+        @if (selectedAccountType(); as accountType) {
+          <div class="selection-feedback" role="status">
+            Selected:
+            <strong>
+              {{
+                accountType === 'business'
+                  ? 'Restaurant / Food Business'
+                  : 'NGO / Charity Organization'
+              }}
+            </strong>
+          </div>
+        }
+
+        <div class="register-actions">
+          <button
+            class="primary-action"
+            type="button"
+            [disabled]="!selectedAccountType()"
+            (click)="continueToAccountDetails()">
+            Continue
+          </button>
+        </div>
+      }
+
+      @if (currentStep() === 1) {
+        <form
+          class="account-form"
+          [formGroup]="accountForm"
+          (ngSubmit)="validateAccountDetails()"
+          novalidate>
+
+          <h2>Authorized Representative Details</h2>
+          <p>
+            Enter the information of the person authorized
+            to manage this organization account.
+          </p>
+
+          @if (registrationError()) {
+            <div class="document-error" role="alert" id="registration-api-error">
+              {{ registrationError() }}
+            </div>
+          }
+
+          <div class="form-grid mc-form-grid">
+            <div class="form-field mc-field">
+              <label for="firstName">First Name *</label>
+              <input
+                class="mc-field__input"
+                id="firstName"
+                type="text"
+                formControlName="firstName"
+                autocomplete="given-name"
+                [attr.aria-invalid]="
+                accountForm.controls.firstName.touched &&
+                accountForm.controls.firstName.invalid"
+                [attr.aria-describedby]="(accountForm.controls.firstName.touched && accountForm.controls.firstName.invalid) ? 'firstName-error' : null"
+              />
+
+              @if (accountForm.controls.firstName.touched &&
+              accountForm.controls.firstName.hasError('server')) {
+                <p id="firstName-error" class="field-error mc-field__error" role="alert">
+                  {{ accountForm.controls.firstName.getError('server') }}
+                </p>
+              } @else if (accountForm.controls.firstName.touched &&
+              accountForm.controls.firstName.invalid) {
+                <p id="firstName-error" class="field-error mc-field__error" role="alert">
+                  Enter a valid first name (2–100 characters).
+                </p>
+              }
+
+            </div>
+
+            <div class="form-field mc-field">
+              <label for="lastName">Last Name *</label>
+              <input class="mc-field__input"
+                     id="lastName"
+                     type="text"
+                     formControlName="lastName"
+                     autocomplete="family-name"
+                     [attr.aria-invalid]="
+                accountForm.controls.lastName.touched &&
+                accountForm.controls.lastName.invalid"
+                     [attr.aria-describedby]="(accountForm.controls.lastName.touched && accountForm.controls.lastName.invalid) ? 'lastName-error' : null"
+              />
+
+              @if (accountForm.controls.lastName.touched &&
+              accountForm.controls.lastName.hasError('server')) {
+                <p id="lastName-error" class="field-error mc-field__error" role="alert">
+                  {{ accountForm.controls.lastName.getError('server') }}
+                </p>
+              } @else if (accountForm.controls.lastName.touched &&
+              accountForm.controls.lastName.invalid) {
+                <p id="lastName-error" class="field-error mc-field__error" role="alert">
+                  Enter a valid last name (2–100 characters).
+                </p>
+              }
+
+            </div>
+
+            <div class="form-field full-width mc-field mc-field--full">
+              <label for="email">Login Email *</label>
+              <input class="mc-field__input"
+                     id="email"
+                     type="email"
+                     formControlName="email"
+                     autocomplete="email"
+                     [attr.aria-invalid]="
+                accountForm.controls.email.touched &&
+                accountForm.controls.email.invalid"
+                     [attr.aria-describedby]="(accountForm.controls.email.touched && accountForm.controls.email.invalid) ? 'email-error' : null"
+              />
+
+              @if (accountForm.controls.email.touched &&
+              accountForm.controls.email.hasError('server')) {
+                <p id="email-error" class="field-error mc-field__error" role="alert">
+                  {{ accountForm.controls.email.getError('server') }}
+                </p>
+              } @else if (accountForm.controls.email.touched &&
+              accountForm.controls.email.invalid) {
+                <p id="email-error" class="field-error mc-field__error" role="alert">
+                  Enter a valid email address.
+                </p>
+              }
+
+            </div>
+
+            <div class="form-field mc-field">
+              <label for="password">Password *</label>
+              <input class="mc-field__input"
+                     id="password"
+                     type="password"
+                     formControlName="password"
+                     autocomplete="new-password"
+                     [attr.aria-invalid]="
+                accountForm.controls.password.touched &&
+                accountForm.controls.password.invalid"
+                     [attr.aria-describedby]="(accountForm.controls.password.touched && accountForm.controls.password.invalid) ? 'password-error' : null"
+              />
+
+
+              @if (accountForm.controls.password.touched &&
+              accountForm.controls.password.hasError('server')) {
+                <p id="password-error" class="field-error mc-field__error" role="alert">
+                  {{ accountForm.controls.password.getError('server') }}
+                </p>
+              } @else if (accountForm.controls.password.touched &&
+              accountForm.controls.password.invalid) {
+                <p id="password-error" class="field-error mc-field__error" role="alert">
+                  Password must contain at least 8 characters.
+                </p>
+              }
+
+            </div>
+
+            <div class="form-field mc-field">
+              <label for="confirmPassword">Confirm Password *</label>
+              <input class="mc-field__input"
+                     id="confirmPassword"
+                     type="password"
+                     formControlName="confirmPassword"
+                     autocomplete="new-password"
+                     [attr.aria-invalid]="
+                accountForm.controls.confirmPassword.touched &&
+                (accountForm.controls.confirmPassword.invalid ||
+                 accountForm.hasError('passwordMismatch'))"
+                     [attr.aria-describedby]="(accountForm.controls.confirmPassword.touched && accountForm.controls.confirmPassword.invalid || (accountForm.controls.confirmPassword.touched && accountForm.hasError('passwordMismatch'))) ? 'confirmPassword-error' : null"
+              />
+
+              @if (accountForm.controls.confirmPassword.touched &&
+              accountForm.controls.confirmPassword.hasError('required')) {
+                <p id="confirmPassword-error" class="field-error mc-field__error" role="alert">
+                  Please confirm your password.
+                </p>
+              } @else if (accountForm.controls.confirmPassword.touched &&
+              accountForm.hasError('passwordMismatch')) {
+                <p id="confirmPassword-error" class="field-error mc-field__error" role="alert">
+                  Passwords do not match.
+                </p>
+              }
+            </div>
+
+            <div class="form-field full-width mc-field mc-field--full">
+              <label for="phone">Contact Number (Optional)</label>
+              <input class="mc-field__input" [attr.aria-invalid]="
+             accountForm.controls.phone.touched &&
+             accountForm.controls.phone.invalid"
+                     id="phone"
+                     type="tel"
+                     formControlName="phone"
+                     autocomplete="tel"
+                     [attr.aria-describedby]="(accountForm.controls.phone.touched && accountForm.controls.phone.invalid) ? 'phone-error' : null"
+              />
+
+              @if (accountForm.controls.phone.touched &&
+              accountForm.controls.phone.hasError('server')) {
+                <p id="phone-error" class="field-error mc-field__error" role="alert">
+                  {{ accountForm.controls.phone.getError('server') }}
+                </p>
+              } @else if (accountForm.controls.phone.touched &&
+              accountForm.controls.phone.invalid) {
+                <p id="phone-error" class="field-error mc-field__error" role="alert">
+                  Enter a valid contact number.
+                </p>
+              }
+
+            </div>
+          </div>
+
+          <div class="register-actions form-actions">
+            <button
+              type="button"
+              class="secondary-action"
+              (click)="currentStep.set(0)">
+              Back
+            </button>
+
+            <button type="submit" class="primary-action">
+              Validate Account Details
+            </button>
+          </div>
+        </form>
+      }
+
+      @if (currentStep() === 2 && selectedAccountType() === 'business') {
+        <form
+          class="account-form organization-form"
+          [formGroup]="businessForm"
+          (ngSubmit)="validateOrganizationDetails()"
+          novalidate>
+
+          <h2>Restaurant / Food Business Details</h2>
+          <p>
+            Provide your registered business information and
+            the location where surplus food can be collected.
+          </p>
+
+          <div class="form-grid mc-form-grid">
+
+            <!-- Business Name -->
+            <div class="form-field full-width mc-field mc-field--full">
+              <label for="businessName">Registered Business Name *</label>
+              <input class="mc-field__input"
+                     id="businessName"
+                     type="text"
+                     formControlName="businessName"
+                     autocomplete="organization"/>
+
+              @if (businessForm.controls.businessName.touched &&
+              businessForm.controls.businessName.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter your registered business name.
+                </p>
+              }
+            </div>
+
+            <!-- Registration Number -->
+            <div class="form-field mc-field">
+              <label for="businessRegistrationNumber">
+                Business Registration Number *
+              </label>
+              <input class="mc-field__input"
+                     id="businessRegistrationNumber"
+                     type="text"
+                     formControlName="registrationNumber"/>
+
+              @if (businessForm.controls.registrationNumber.touched &&
+              businessForm.controls.registrationNumber.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter a valid registration number.
+                </p>
+              }
+            </div>
+
+            <!-- Business Type -->
+            <div class="form-field mc-field">
+              <label for="businessType">Business Type *</label>
+              <select class="mc-field__select"
+                      id="businessType"
+                      formControlName="businessType">
+
+                <option value="">Select business type</option>
+                <option value="restaurant">Restaurant</option>
+                <option value="bakery">Bakery</option>
+              </select>
+
+              @if (businessForm.controls.businessType.touched &&
+              businessForm.controls.businessType.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Please select a business type.
+                </p>
+              }
+            </div>
+
+            <!-- Registered Address -->
+            <div class="form-field full-width mc-field mc-field--full">
+              <label for="businessAddress">Registered Address *</label>
+              <textarea class="mc-field__textarea"
+                        id="businessAddress"
+                        formControlName="registeredAddress"
+                        rows="3"></textarea>
+
+              @if (businessForm.controls.registeredAddress.touched &&
+              businessForm.controls.registeredAddress.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter the registered business address.
+                </p>
+              }
+            </div>
+
+            @let businessCity = businessForm.controls.city;
+
+            <div class="form-field mc-field">
+              <label class="mc-field__label" for="business-city">Registered city *</label>
+              <input
+                class="mc-field__input"
+                id="business-city"
+                type="text"
+                [formControl]="businessCity"
+                autocomplete="address-level2"
+                required
+                [attr.aria-invalid]="businessCity.touched && businessCity.invalid ? 'true' : null"
+                [attr.aria-describedby]="businessCity.touched && businessCity.invalid ? 'business-city-error' : null"
+              />
+              @if (businessCity.touched && businessCity.invalid) {
+                <p class="mc-field__error" id="business-city-error">
+                  {{ businessCity.hasError('required')
+                  ? 'Enter the registered city.'
+                  : 'Use 255 characters or fewer.' }}
+                </p>
+              }
+            </div>
+
+            <!-- Pickup Location -->
+            <div class="form-field full-width mc-field mc-field--full">
+              <label for="pickupLocation">Food Pickup Location *</label>
+              <textarea class="mc-field__textarea"
+                        id="pickupLocation"
+                        formControlName="pickupLocation"
+                        rows="3"></textarea>
+
+              @if (businessForm.controls.pickupLocation.touched &&
+              businessForm.controls.pickupLocation.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter the location for food collection.
+                </p>
+              }
+            </div>
+
+            <!-- Contact Email -->
+            <div class="form-field mc-field">
+              <label for="businessContactEmail">
+                Organization Contact Email *
+              </label>
+              <input class="mc-field__input"
+                     id="businessContactEmail"
+                     type="email"
+                     formControlName="contactEmail"
+                     autocomplete="email"/>
+
+              @if (businessForm.controls.contactEmail.touched &&
+              businessForm.controls.contactEmail.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter a valid organization contact email.
+                </p>
+              }
+            </div>
+
+            <!-- Contact Phone -->
+            <div class="form-field mc-field">
+              <label for="businessContactPhone">
+                Organization Contact Number *
+              </label>
+              <input class="mc-field__input"
+                     id="businessContactPhone"
+                     type="tel"
+                     formControlName="contactPhone"
+                     autocomplete="tel"/>
+
+              @if (businessForm.controls.contactPhone.touched &&
+              businessForm.controls.contactPhone.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter your organization contact number.
+                </p>
+              }
+            </div>
+
+            <!-- Representative Designation -->
+            <div class="form-field full-width mc-field mc-field--full">
+              <label for="businessDesignation">
+                Authorized Representative's Designation *
+              </label>
+              <input class="mc-field__input"
+                     id="businessDesignation"
+                     type="text"
+                     formControlName="representativeDesignation"
+                     placeholder="e.g. Owner, Manager, Director"/>
+
+              @if (businessForm.controls.representativeDesignation.touched &&
+              businessForm.controls.representativeDesignation.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter the representative's designation.
+                </p>
+              }
+            </div>
+
+          </div>
+
+          <div class="register-actions form-actions">
+            <button
+              type="button"
+              class="secondary-action"
+              (click)="backToAccountDetails()">
+              Back
+            </button>
+
+            <button type="submit" class="primary-action">
+              Validate Organization Details
+            </button>
+          </div>
+
+        </form>
+      }
+
+      <!-- NGO / Charity Organization Details -->
+
+      @if (currentStep() === 2 && selectedAccountType() === 'ngo') {
+        <form
+          class="account-form organization-form"
+          [formGroup]="ngoForm"
+          (ngSubmit)="validateOrganizationDetails()"
+          novalidate>
+
+          <h2>NGO / Charity Organization Details</h2>
+          <p>
+            Provide your organization's registration information,
+            operating area and food distribution capabilities.
+          </p>
+
+          <div class="form-grid mc-form-grid">
+
+            <!-- NGO Name -->
+            <div class="form-field full-width mc-field mc-field--full">
+              <label for="ngoName">Registered NGO Name *</label>
+              <input class="mc-field__input"
+                     id="ngoName"
+                     type="text"
+                     formControlName="ngoName"
+                     autocomplete="organization"/>
+
+              @if (ngoForm.controls.ngoName.touched &&
+              ngoForm.controls.ngoName.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter your registered NGO name.
+                </p>
+              }
+            </div>
+
+            <!-- Registration Number -->
+            <div class="form-field mc-field">
+              <label for="ngoRegistrationNumber">
+                NGO Registration Number *
+              </label>
+              <input class="mc-field__input"
+                     id="ngoRegistrationNumber"
+                     type="text"
+                     formControlName="registrationNumber"/>
+
+              @if (ngoForm.controls.registrationNumber.touched &&
+              ngoForm.controls.registrationNumber.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter your NGO registration number.
+                </p>
+              }
+            </div>
+
+            <!-- Registration Authority -->
+            <div class="form-field mc-field">
+              <label for="registrationAuthority">
+                Registration Authority *
+              </label>
+              <input class="mc-field__input"
+                     id="registrationAuthority"
+                     type="text"
+                     formControlName="registrationAuthority"
+                     placeholder="e.g. Relevant registration authority"/>
+
+              @if (ngoForm.controls.registrationAuthority.touched &&
+              ngoForm.controls.registrationAuthority.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter the registration authority.
+                </p>
+              }
+            </div>
+
+            <!-- Registration Date -->
+            <div class="form-field mc-field">
+              <label for="registrationDate">
+                Registration Date *
+              </label>
+
+              <input class="mc-field__input"
+                     id="registrationDate"
+                     type="date"
+                     formControlName="registrationDate"
+                     [attr.aria-invalid]="
+    ngoForm.controls.registrationDate.touched &&
+    ngoForm.controls.registrationDate.invalid"/>
+
+              @if (ngoForm.controls.registrationDate.touched &&
+              ngoForm.controls.registrationDate.hasError('required')) {
+                <p class="field-error mc-field__error" role="alert">
+                  Registration date is required.
+                </p>
+              } @else if (ngoForm.controls.registrationDate.touched &&
+              ngoForm.controls.registrationDate.hasError('futureDate')) {
+                <p class="field-error mc-field__error" role="alert">
+                  Registration date cannot be in the future.
+                </p>
+              } @else if (ngoForm.controls.registrationDate.touched &&
+              ngoForm.controls.registrationDate.hasError('invalidDate')) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter a valid registration date.
+                </p>
+              }
+
+            </div>
+
+            <!-- Registered Address -->
+            <div class="form-field full-width mc-field mc-field--full">
+              <label for="ngoAddress">
+                Registered Address *
+              </label>
+              <textarea class="mc-field__textarea"
+                        id="ngoAddress"
+                        formControlName="registeredAddress"
+                        rows="3"></textarea>
+
+
+              @if (ngoForm.controls.registeredAddress.touched &&
+              ngoForm.controls.registeredAddress.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter the registered NGO address.
+                </p>
+              }
+            </div>
+
+            @let city = ngoForm.controls.city;
+            <div class="form-field mc-field">
+              <label class="mc-field__label" for="ngo-city">Registered city *</label>
+              <input
+                class="mc-field__input"
+                id="ngo-city"
+                type="text"
+                [formControl]="ngoForm.controls.city"
+                autocomplete="address-level2"
+                required
+                [attr.aria-invalid]="city.touched && city.invalid ? 'true' : null"
+                [attr.aria-describedby]="city.touched && city.invalid ? 'ngo-city-error' : null"
+              />
+              @if (city.touched && city.invalid) {
+                <p class="mc-field__error" id="ngo-city-error">
+                  {{ city.hasError('required')
+                  ? 'Enter the registered city.'
+                  : 'Use 255 characters or fewer.' }}
+                </p>
+              }
+            </div>
+
+            <!-- Operating Area -->
+            <div class="form-field full-width mc-field mc-field--full">
+              <label for="operatingArea">
+                Organization Operating Area *
+              </label>
+              <input class="mc-field__input"
+                     id="operatingArea"
+                     type="text"
+                     formControlName="operatingArea"
+                     placeholder="e.g. Colombo District"/>
+
+              @if (ngoForm.controls.operatingArea.touched &&
+              ngoForm.controls.operatingArea.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter the organization's operating area.
+                </p>
+              }
+            </div>
+
+            <!-- Contact Email -->
+            <div class="form-field mc-field">
+              <label for="ngoContactEmail">
+                Organization Contact Email *
+              </label>
+              <input class="mc-field__input"
+                     id="ngoContactEmail"
+                     type="email"
+                     formControlName="contactEmail"/>
+
+              @if (ngoForm.controls.contactEmail.touched &&
+              ngoForm.controls.contactEmail.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter a valid organization contact email.
+                </p>
+              }
+            </div>
+
+            <!-- Contact Phone -->
+            <div class="form-field mc-field">
+              <label for="ngoContactPhone">
+                Organization Contact Number *
+              </label>
+              <input class="mc-field__input"
+                     id="ngoContactPhone"
+                     type="tel"
+                     formControlName="contactPhone"/>
+
+              @if (ngoForm.controls.contactPhone.touched &&
+              ngoForm.controls.contactPhone.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter the organization's contact number.
+                </p>
+              }
+            </div>
+
+            <!-- Representative Designation -->
+            <div class="form-field full-width mc-field mc-field--full">
+              <label for="ngoDesignation">
+                Authorized Representative's Designation *
+              </label>
+              <input class="mc-field__input"
+                     id="ngoDesignation"
+                     type="text"
+                     formControlName="representativeDesignation"
+                     placeholder="e.g. Director, Coordinator, Secretary"/>
+
+              @if (ngoForm.controls.representativeDesignation.touched &&
+              ngoForm.controls.representativeDesignation.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter the representative's designation.
+                </p>
+              }
+            </div>
+
+            <!-- Distribution Area -->
+            <div class="form-field full-width mc-field mc-field--full">
+              <label for="distributionArea">
+                Food Distribution Area *
+              </label>
+              <textarea class="mc-field__textarea"
+                        id="distributionArea"
+                        formControlName="distributionArea"
+                        rows="3"
+                        placeholder="Describe the communities or locations served">
+        </textarea>
+
+              @if (ngoForm.controls.distributionArea.touched &&
+              ngoForm.controls.distributionArea.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Enter the intended food distribution area.
+                </p>
+              }
+            </div>
+
+            <!-- Operational Capability -->
+            <div class="form-field full-width mc-field mc-field--full">
+              <label for="operationalCapability">
+                Operational Capability *
+              </label>
+              <textarea class="mc-field__textarea"
+                        id="operationalCapability"
+                        formControlName="operationalCapability"
+                        rows="4"
+                        placeholder="Describe your food collection, transport, storage and distribution capacity">
+        </textarea>
+
+              @if (ngoForm.controls.operationalCapability.touched &&
+              ngoForm.controls.operationalCapability.invalid) {
+                <p class="field-error mc-field__error" role="alert">
+                  Describe your organization's operational capability.
+                </p>
+              }
+            </div>
+
+          </div>
+
+          <div class="register-actions form-actions">
+            <button
+              type="button"
+              class="secondary-action"
+              (click)="backToAccountDetails()">
+              Back
+            </button>
+
+            <button
+              type="submit"
+              class="primary-action">
+              Validate Organization Details
+            </button>
+          </div>
+
+        </form>
+      }
+
+      <!-- Step 3: Verification Documents -->
+
+      @if (currentStep() === 3) {
+        <section
+          class="documents-step"
+          aria-labelledby="documents-title">
+
+          <h2 id="documents-title">Verification Documents</h2>
+
+          <p class="documents-description">
+            Select the documents required to verify your
+            organization and authorized representative.
+          </p>
+
+          <div class="upload-requirements">
+            <strong>File requirements</strong>
+            <p>Accepted formats: PDF, JPG and PNG.</p>
+            <p>Maximum size: 5 MiB per file.</p>
+            <p>Maximum: 3 documents.</p>
+            <p>
+              These limits are provisional until confirmed
+              with the backend team.
+            </p>
+          </div>
+
+          <!-- Registration Certificate -->
+          <div class="document-upload-card">
+            <h3>
+              @if (selectedAccountType() === 'business') {
+                Business Registration Certificate
+              } @else {
+                NGO Registration Certificate
+              }
+              <span class="required-marker">*</span>
+            </h3>
+
+            <p>
+              Provide a copy of your organization's
+              official registration certificate.
+            </p>
+
+            <label for="registrationCertificate">
+              Choose registration certificate
+            </label>
+
+            <input
+              id="registrationCertificate"
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              (change)="onDocumentSelected(
+          $event,
+          'registration_certificate'
+        )"/>
+
+            @for (document of selectedDocuments(); track document.type) {
+              @if (document.type === 'registration_certificate') {
+                <div class="selected-document">
+            <span>
+              {{ document.file.name }}
+              ({{ (document.file.size / 1024 / 1024).toFixed(2) }} MiB)
+            </span>
+
+                  <button
+                    type="button"
+                    class="remove-document"
+                    (click)="removeDocument('registration_certificate')"
+                    aria-label="Remove registration certificate">
+                    Remove
+                  </button>
+                </div>
+              }
+            }
+          </div>
+
+          <!-- Representative Authorization -->
+          <div class="document-upload-card">
+            <h3>Representative Authorization</h3>
+
+            <p>
+              Upload authorization evidence if the person
+              registering is acting on behalf of the organization.
+            </p>
+
+            <label for="representativeAuthorization">
+              Choose authorization document
+            </label>
+
+            <input
+              id="representativeAuthorization"
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              (change)="onDocumentSelected(
+          $event,
+          'representative_authorization'
+        )"/>
+
+            @for (document of selectedDocuments(); track document.type) {
+              @if (document.type === 'representative_authorization') {
+                <div class="selected-document">
+                  <span>{{ document.file.name }}</span>
+
+                  <button
+                    type="button"
+                    class="remove-document"
+                    (click)="removeDocument('representative_authorization')"
+                    aria-label="Remove authorization document">
+                    Remove
+                  </button>
+                </div>
+              }
+            }
+          </div>
+
+          <!-- Supporting Document -->
+          <div class="document-upload-card">
+            <h3>Additional Supporting Document</h3>
+
+            <p>
+              @if (selectedAccountType() === 'business') {
+                Select additional business evidence,
+                  such as a food premises certificate
+                  or trade license, when applicable.
+              } @else {
+                Select additional NGO registration
+                  or operational evidence, when requested.
+              }
+            </p>
+
+            <label for="supportingDocument">
+              Choose supporting document
+            </label>
+
+            <input
+              id="supportingDocument"
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              (change)="onDocumentSelected(
+          $event,
+          'supporting_document'
+        )"/>
+
+            @for (document of selectedDocuments(); track document.type) {
+              @if (document.type === 'supporting_document') {
+                <div class="selected-document">
+                  <span>{{ document.file.name }}</span>
+
+                  <button
+                    type="button"
+                    class="remove-document"
+                    (click)="removeDocument('supporting_document')"
+                    aria-label="Remove supporting document">
+                    Remove
+                  </button>
+                </div>
+              }
+            }
+          </div>
+
+          <!-- Validation Error -->
+          @if (documentError()) {
+            <div class="document-error" role="alert">
+              {{ documentError() }}
+            </div>
+          }
+
+          <!-- Selection Summary -->
+          <div class="document-summary" role="status">
+            <strong>
+              {{ selectedDocuments().length }}
+              of {{ maxDocumentCount }} documents selected
+            </strong>
+          </div>
+
+          <!-- Navigation -->
+          <div class="register-actions form-actions">
+            <button
+              type="button"
+              class="secondary-action"
+              (click)="backToOrganizationDetails()">
+              Back
+            </button>
+
+            <button
+              type="button"
+              class="primary-action"
+              [disabled]="!hasRequiredDocuments()"
+              (click)="continueToReview()">
+              Continue to Review
+            </button>
+
+          </div>
+        </section>
+      }
+
+      <!-- Step 4: Review & Submit -->
+
+      @if (currentStep() === 4) {
+        <section class="review-step" aria-labelledby="review-title">
+
+          <h2 id="review-title">Review Your Application</h2>
+          <p class="review-description">
+            Please check your information carefully before submitting
+            your organization application for verification.
+          </p>
+
+          <!-- Account Summary -->
+          <div class="review-card">
+            <h3>1. Authorized Representative</h3>
+
+            <dl class="review-list">
+              <div>
+                <dt>Full Name</dt>
+                <dd>
+                  {{ accountForm.controls.firstName.value }}
+                  {{ accountForm.controls.lastName.value }}
+                </dd>
+              </div>
+
+              <div>
+                <dt>Login Email</dt>
+                <dd>{{ accountForm.controls.email.value }}</dd>
+              </div>
+
+              <div>
+                <dt>Contact Number</dt>
+                <dd>
+                  {{ accountForm.controls.phone.value || 'Not provided' }}
+                </dd>
+              </div>
+            </dl>
+
+            <p class="review-note">
+              Passwords are hidden for security.
+            </p>
+          </div>
+
+          <!-- Business Summary -->
+          @if (selectedAccountType() === 'business') {
+            <div class="review-card">
+              <h3>2. Restaurant / Food Business</h3>
+
+              <dl class="review-list">
+                <div>
+                  <dt>Registered Name</dt>
+                  <dd>{{ businessForm.controls.businessName.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Registration Number</dt>
+                  <dd>{{ businessForm.controls.registrationNumber.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Business Type</dt>
+                  <dd>{{ businessForm.controls.businessType.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Registered Address</dt>
+                  <dd>{{ businessForm.controls.registeredAddress.value }}</dd>
+                  <dd>{{ businessForm.controls.city.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Food Pickup Location</dt>
+                  <dd>{{ businessForm.controls.pickupLocation.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Organization Email</dt>
+                  <dd>{{ businessForm.controls.contactEmail.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Organization Phone</dt>
+                  <dd>{{ businessForm.controls.contactPhone.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Representative Designation</dt>
+                  <dd>
+                    {{ businessForm.controls.representativeDesignation.value }}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          }
+
+          <!-- NGO Summary -->
+          @if (selectedAccountType() === 'ngo') {
+            <div class="review-card">
+              <h3>2. NGO / Charity Organization</h3>
+
+              <dl class="review-list">
+                <div>
+                  <dt>Registered NGO Name</dt>
+                  <dd>{{ ngoForm.controls.ngoName.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Registration Number</dt>
+                  <dd>{{ ngoForm.controls.registrationNumber.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Registration Authority</dt>
+                  <dd>{{ ngoForm.controls.registrationAuthority.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Registration Date</dt>
+                  <dd>{{ ngoForm.controls.registrationDate.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Registered Address</dt>
+                  <dd>{{ ngoForm.controls.registeredAddress.value }}</dd>
+                  <dd>{{ ngoForm.controls.city.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Operating Area</dt>
+                  <dd>{{ ngoForm.controls.operatingArea.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Organization Email</dt>
+                  <dd>{{ ngoForm.controls.contactEmail.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Organization Phone</dt>
+                  <dd>{{ ngoForm.controls.contactPhone.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Representative Designation</dt>
+                  <dd>
+                    {{ ngoForm.controls.representativeDesignation.value }}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt>Food Distribution Area</dt>
+                  <dd>{{ ngoForm.controls.distributionArea.value }}</dd>
+                </div>
+
+                <div>
+                  <dt>Operational Capability</dt>
+                  <dd>{{ ngoForm.controls.operationalCapability.value }}</dd>
+                </div>
+              </dl>
+            </div>
+          }
+
+          <!-- Document Summary -->
+          <div class="review-card">
+            <h3>3. Verification Documents</h3>
+
+            <ul class="review-documents">
+              @for (document of selectedDocuments(); track document.type) {
+                <li>
+                  <strong>
+                    @switch (document.type) {
+                      @case ('registration_certificate') {
+                        Registration Certificate
+                      }
+                      @case ('representative_authorization') {
+                        Representative Authorization
+                      }
+                      @case ('supporting_document') {
+                        Supporting Document
+                      }
+                    }
+                  </strong>
+
+                  <span>{{ document.file.name }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+
+          <!-- Submission Notice -->
+          <div class="review-notice">
+            <strong>Administrative Verification Required</strong>
+            <p>
+              Submitting an application does not automatically approve
+              your organization. Access to protected Restaurant or NGO
+              features requires administrator verification.
+            </p>
+          </div>
+
+          <!-- Applicant Declarations -->
+
+          <fieldset class="applicant-declarations">
+            <legend>Applicant Declarations</legend>
+
+            <p>
+              Please review and accept the following declarations
+              before submitting your application.
+            </p>
+
+            <label class="declaration-option">
+              <input
+                type="checkbox"
+                [checked]="informationDeclarationAccepted()"
+                (change)="setInformationDeclaration(
+        $any($event.target).checked
+      )"/>
+
+              <span>
+      I confirm that the information and documents
+      provided in this application are accurate and
+      that I am authorized to submit this application
+      on behalf of the organization.
+    </span>
+            </label>
+
+            <label class="declaration-option">
+              <input
+                type="checkbox"
+                [checked]="verificationDeclarationAccepted()"
+                (change)="setVerificationDeclaration(
+        $any($event.target).checked
+      )"/>
+
+              <span>
+      I understand that submitting this application
+      does not automatically grant access to Restaurant
+      or NGO functions. The organization must first
+      complete administrative verification.
+    </span>
+            </label>
+
+            @if (declarationsAccepted()) {
+              <p class="declaration-confirmation" role="status">
+                Both declarations have been accepted.
+              </p>
+            }
+          </fieldset>
+
+          <!-- Navigation -->
+          @if (applicationSubmitError(); as message) {
+            <p class="mc-field__error" role="alert">{{ message }}</p>
+          }
+
+          <div class="register-actions form-actions">
+            <button
+              type="button"
+              class="secondary-action"
+              (click)="backToDocuments()"
+              [disabled]="isSubmittingApplication() || accountCreated()">
+              Back to Documents
+            </button>
+
+            <button
+              type="button"
+              class="primary-action"
+              (click)="submitApplication()"
+              [disabled]="!selectedAccountType()
+              || !declarationsAccepted()
+              || isRegisteringAccount()
+              || isSubmittingApplication()">
+              {{ isSubmittingApplication() ? 'Submitting…' : 'Submit Application' }}
+            </button>
+          </div>
+        </section>
+      }
+
+    </div>
+  </section>
+}

@@ -1,0 +1,113 @@
+<section aria-labelledby="login-title">
+  <h1 id="login-title">Log in to Meal Connect</h1>
+
+  <form class="mc-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    @let email = form.controls.email;
+    @let password = form.controls.password;
+    @if (loginError(); as message) {
+      <p class="mc-field__error" role="alert">{{ message }}</p>
+    }
+
+    @if (loginMessage(); as message) {
+      <p role="status">{{ message }}</p>
+    }
+
+    <div class="mc-field">
+      <label class="mc-field__label" for="login-email">Email address</label>
+      <input
+        class="mc-field__input"
+        id="login-email"
+        type="email"
+        formControlName="email"
+        autocomplete="username"
+        required
+        [attr.aria-invalid]="email.touched && email.invalid ? 'true' : null"
+        [attr.aria-describedby]="email.touched && email.invalid ? 'login-email-error' : null"
+        [readOnly]="isSubmitting() || isResubmitting() || isUploadingCorrection()"
+      />
+      @if (email.touched && email.invalid) {
+        <p class="mc-field__error" id="login-email-error">
+          {{ email.getError('server') ||
+        (email.hasError('required') ? 'Enter your email address.' : 'Enter a valid email address.') }}
+        </p>
+      }
+    </div>
+
+    <div class="mc-field">
+      <label class="mc-field__label" for="login-password">Password</label>
+      <input
+        class="mc-field__input"
+        id="login-password"
+        type="password"
+        formControlName="password"
+        autocomplete="current-password"
+        required
+        [attr.aria-invalid]="password.touched && password.invalid ? 'true' : null"
+        [attr.aria-describedby]="password.touched && password.invalid ? 'login-password-error' : null"
+        [readOnly]="isSubmitting() || isResubmitting() || isUploadingCorrection()"
+      />
+      @if (password.touched && password.invalid) {
+        <p class="mc-field__error" id="login-password-error">
+          {{ password.getError('server') || 'Enter your password.' }}
+        </p>
+      }
+    </div>
+
+    <div class="mc-form-actions">
+      <button type="submit" [disabled]="isSubmitting() || isResubmitting() || isUploadingCorrection()">
+        {{ isSubmitting() ? 'Logging in…' : 'Log in' }}
+      </button>
+    </div>
+  </form>
+
+  @if (resubmitError(); as message) {
+    <p class="mc-field__error" role="alert">{{ message }}</p>
+  }
+
+  @if (correctionError(); as message) {
+    <p class="mc-field__error" role="alert">{{ message }}</p>
+  }
+
+  @if (canResubmit()) {
+    <fieldset [disabled]="isSubmitting() || isResubmitting() || isUploadingCorrection()">
+      <legend>Upload a corrected document</legend>
+
+      <div class="mc-field">
+        <label class="mc-field__label" for="correction-type">Document type</label>
+        <select #correctionType class="mc-field__select" id="correction-type">
+          <option value="">Select a document type</option>
+          <option value="registration_certificate">Registration certificate</option>
+          <option value="representative_authorization">Representative authorization</option>
+          <option value="supporting_document">Supporting document</option>
+        </select>
+      </div>
+
+      <div class="mc-field mc-file-upload">
+        <label class="mc-field__label" for="correction-file">Corrected file</label>
+        <input
+          #correctionFile
+          id="correction-file"
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png"
+          aria-describedby="correction-file-hint"
+        />
+        <p class="mc-field__hint" id="correction-file-hint">PDF, JPG or PNG. Maximum 5 MiB.</p>
+      </div>
+
+      <button type="button" (click)="uploadCorrection(correctionFile, correctionType.value)">
+        {{ isUploadingCorrection() ? 'Uploading…' : 'Upload corrected document' }}
+      </button>
+    </fieldset>
+
+    @if (correctionMessage(); as message) {
+      <p role="status">{{ message }}</p>
+    }
+
+    <p>Resubmit after your requested corrections have been saved.</p>
+    <div class="mc-form-actions">
+      <button id="resubmit-application" type="button" [disabled]="isSubmitting() || isResubmitting() || isUploadingCorrection()" (click)="resubmit()">
+        {{ isResubmitting() ? 'Resubmitting…' : 'Resubmit for review' }}
+      </button>
+    </div>
+  }
+</section>

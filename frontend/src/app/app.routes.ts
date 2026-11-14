@@ -12,15 +12,16 @@ export const routes: Routes = [
     path: 'login',
     title: 'Login | Meal Connect',
     loadComponent: () =>
-      import('./shared/feature-unavailable/feature-unavailable')
-        .then(m => m.FeatureUnavailable)
+      import('./features/auth/login/login')
+        .then(m => m.Login)
   },
+
   {
     path: 'register',
     title: 'Register | Meal Connect',
     loadComponent: () =>
-      import('./shared/feature-unavailable/feature-unavailable')
-        .then(m => m.FeatureUnavailable)
+      import('./features/auth/register/register')
+        .then(m => m.Register)
   },
 
   {
