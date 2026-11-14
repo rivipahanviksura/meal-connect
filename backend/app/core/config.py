@@ -1,7 +1,8 @@
 
 from pathlib import Path
+from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +15,8 @@ class Settings(BaseSettings):
     # Each feature must validate its required configuration before use.
     database_url: SecretStr | None = None
     secret_key: SecretStr | None = None
+    jwt_algorithm: Literal["HS256"] = "HS256"
+    access_token_expire_minutes: int = Field(default=30, gt=0)
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

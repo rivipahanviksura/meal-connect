@@ -1,9 +1,13 @@
+from datetime import datetime, timedelta, timezone
 
+import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import (
     VerificationError,
     InvalidHashError,
 )
+
+from app.core.config import settings
 
 # Argon2id is the default password-hashing algorithm.
 password_hasher = PasswordHasher()
@@ -42,3 +46,25 @@ def verify_and_update(
         return True, hash_password(password)
 
     return True, None
+
+
+class TokenConfigurationError(RuntimeError):
+    pass
+
+
+def get_secret_key() -> str:
+    key = settings.secret_key.get_secret_value() if settings.secret_key else ""
+    if key.strip() == "REPLACE_WITH_LOCAL_RANDOM_SECRET" or len(key.strip().encode("utf-8")) < 32:
+        raise TokenConfigurationError("JWT signing key is missing or invalid.")
+    return key
+
+
+def create_access_token(user_id: int) -> str:
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.access_token_expire_minutes
+    )
+    return jwt.encode(
+        {"sub": str(user_id), "exp": expires_at},
+        get_secret_key(),
+        algorithm=settings.jwt_algorithm,
+    )

@@ -1,14 +1,17 @@
 from unittest.mock import Mock
 
+import jwt
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 from sqlalchemy import BigInteger, create_engine, func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.ext.compiler import compiles
 
-from app.api.auth import get_password_hasher
+from app.core.config import settings
+from app.core.security import verify_password
 from app.db.models.user import AccountStatus, User, UserRole
 from app.db.session import get_db
 from app.main import app
@@ -43,7 +46,6 @@ def client(db):
     def override_db():
         yield db
     app.dependency_overrides[get_db] = override_db
-    app.dependency_overrides[get_password_hasher] = lambda: None
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
@@ -105,13 +107,6 @@ def test_reject_raw_or_empty_password(db, payload, password_hash):
     assert db.scalar(select(func.count()).select_from(User)) == 0
 
 
-def test_hashing_pending_creates_nothing(client, db, payload):
-    response = client.post('/api/v1/auth/register', json=payload)
-    assert response.status_code == 503
-    assert response.json()['error']['fields'] == []
-    assert db.scalar(select(func.count()).select_from(User)) == 0
-
-
 @pytest.mark.parametrize('extra', [{'role': 'admin'}, {'account_status': 'active'},
                                   {'account_type': 'volunteer'}, {'account_type': 'admin'}])
 def test_public_privilege_fields_rejected(client, payload, extra):
@@ -121,14 +116,14 @@ def test_public_privilege_fields_rejected(client, payload, extra):
     assert payload['password'] not in response.text
 
 
-def test_registration_contract_with_stub_hasher(client, db, payload):
-    # Tests the MEAL-78 integration seam, not MEAL-176 cryptography.
-    app.dependency_overrides[get_password_hasher] = lambda: lambda password: 'test-hash'
+def test_registration_contract_with_argon2id(client, db, payload):
     response = client.post('/api/v1/auth/register', json=payload)
     assert response.status_code == 201
     assert response.json()['data']['role'] == 'ngo_staff'
-    assert 'password' not in response.text and 'test-hash' not in response.text
-    assert get_user_by_email(db, payload['email']).password_hash == 'test-hash'
+    assert 'password' not in response.text and payload['password'] not in response.text
+    stored_hash = get_user_by_email(db, payload['email']).password_hash
+    assert stored_hash.startswith('$argon2id$')
+    assert verify_password(payload['password'], stored_hash)
     duplicate = client.post('/api/v1/auth/register', json=payload)
     assert duplicate.status_code == 409
     assert duplicate.json() == {'error': {'code': 'ALREADY_EXISTS',
@@ -136,7 +131,6 @@ def test_registration_contract_with_stub_hasher(client, db, payload):
 
 
 def test_database_error_is_safe(client, payload, monkeypatch):
-    app.dependency_overrides[get_password_hasher] = lambda: lambda password: 'test-hash'
     monkeypatch.setattr('app.api.auth.create_user_record', Mock(side_effect=SQLAlchemyError('secret SQL')))
     response = client.post('/api/v1/auth/register', json=payload)
     assert response.status_code == 500
@@ -171,3 +165,75 @@ def test_commit_failure_rolls_back(db, payload, monkeypatch):
     monkeypatch.setattr(db, 'commit', original_commit)
     assert db.scalar(select(func.count()).select_from(User)) == 0
     assert create_user_record(db, RegistrationRequest(**payload), 'test-hash').user_id
+
+
+@pytest.fixture
+def signing_key(monkeypatch):
+    key = "test-only-meal-connect-signing-key-0123456789"
+    monkeypatch.setattr(settings, "secret_key", SecretStr(key))
+    monkeypatch.setattr(settings, "access_token_expire_minutes", 17)
+    return key
+
+
+@pytest.mark.parametrize(("account_type", "role"), [("business", "business_staff"), ("ngo", "ngo_staff")])
+def test_registered_applicant_can_log_in(client, db, payload, signing_key, account_type, role):
+    response = client.post("/api/v1/auth/register", json={**payload, "account_type": account_type})
+    assert response.status_code == 201
+    user_id = response.json()["data"]["user_id"]
+
+    response = client.post("/api/v1/auth/login", json={
+        "email": payload["email"],
+        "password": payload["password"],
+    })
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert response.json() == {"data": {
+        "access_token": data["access_token"],
+        "token_type": "bearer",
+        "expires_in": 17 * 60,
+        "user": {"user_id": user_id, "email": payload["email"].lower(), "role": role},
+    }}
+    claims = jwt.decode(data["access_token"], signing_key, algorithms=["HS256"],
+                        options={"require": ["sub", "exp"]})
+    assert claims["sub"] == str(user_id)
+
+
+@pytest.mark.parametrize(("role", "status", "password_matches", "expected_status", "code"), [
+    (UserRole.ngo_staff, AccountStatus.active, False, 401, "INVALID_CREDENTIALS"),
+    (UserRole.volunteer, AccountStatus.active, True, 401, "INVALID_CREDENTIALS"),
+    (UserRole.ngo_staff, AccountStatus.suspended, True, 403, "ACCOUNT_INACTIVE"),
+])
+def test_login_rejections(client, db, payload, signing_key, role, status, password_matches,
+                          expected_status, code):
+    response = client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 201
+    user = get_user_by_email(db, payload["email"])
+    user.role = role
+    user.account_status = status
+    db.commit()
+
+    password = payload["password"] if password_matches else "WrongPassword123!"
+    response = client.post("/api/v1/auth/login", json={"email": payload["email"], "password": password})
+    assert response.status_code == expected_status
+    assert response.json()["error"]["code"] == code
+    assert response.json()["error"]["fields"] == []
+    assert "access_token" not in response.text
+    assert password not in response.text
+
+
+@pytest.mark.parametrize("key", [None, "short-key", "REPLACE_WITH_LOCAL_RANDOM_SECRET"])
+def test_login_with_invalid_signing_key_returns_safe_503(client, payload, monkeypatch, key):
+    monkeypatch.setattr(settings, "secret_key", SecretStr(key) if key else None)
+    assert client.post("/api/v1/auth/register", json=payload).status_code == 201
+    response = client.post("/api/v1/auth/login", json={
+        "email": payload["email"],
+        "password": payload["password"],
+    })
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "AUTH_UNAVAILABLE"
+
+
+def test_login_rejects_missing_password(client, payload):
+    response = client.post("/api/v1/auth/login", json={"email": payload["email"]})
+    assert response.status_code == 422
+    assert response.json()["error"]["fields"][0]["field"] == "password"
