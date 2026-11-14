@@ -1,4 +1,6 @@
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.db.models.user import UserRole, AccountStatus
@@ -12,6 +14,10 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     phone: str | None = Field(default=None, max_length=25)
+
+
+class RegistrationRequest(UserCreate):
+    account_type: Literal["business", "ngo"]
 
 
 class LoginRequest(BaseModel):
@@ -31,3 +37,7 @@ class UserResponse(BaseModel):
     phone: str | None
     role: UserRole
     account_status: AccountStatus
+
+
+class RegistrationResponse(BaseModel):
+    data: UserResponse

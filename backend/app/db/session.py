@@ -32,3 +32,14 @@ def get_session_factory():
         autoflush=False,
         autocommit=False,
     )
+
+
+def get_db():
+    """Provide a request-scoped session; release its connection on exit."""
+    engine = get_engine()
+    session = sessionmaker(bind=engine, autoflush=False)()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
