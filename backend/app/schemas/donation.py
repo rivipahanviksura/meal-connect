@@ -1,20 +1,33 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import (
     AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
+    model_validator,
 )
+
+
+POSTGRES_MAX_OFFSET = (2**63) - 1
 
 
 class DonationBrowseQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    city: str | None = Field(default=None, min_length=1, max_length=120)
-    category: str | None = Field(default=None, min_length=1, max_length=100)
+    city: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+    )
+
+    category: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+    )
 
     status: Literal["available", "partially_allocated"] | None = None
 
@@ -36,6 +49,18 @@ class DonationBrowseQuery(BaseModel):
 
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
+
+    @model_validator(mode="after")
+    def validate_pagination_offset(self) -> Self:
+        offset = (self.page - 1) * self.page_size
+
+        if offset > POSTGRES_MAX_OFFSET:
+            raise ValueError(
+                "The requested page and page_size exceed "
+                "the supported pagination range."
+            )
+
+        return self
 
 
 class DonationListItem(BaseModel):
