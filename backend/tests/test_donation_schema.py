@@ -74,3 +74,36 @@ def test_client_cannot_supply_status():
 
     with pytest.raises(ValidationError):
         DonationCreate(**data)
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    ["available_from", "pickup_deadline", "prepared_at"],
+)
+def test_timezone_is_required_for_all_timestamps(field_name):
+    data = valid_donation_data()
+    data[field_name] = "2026-11-15T09:00:00"
+
+    with pytest.raises(ValidationError):
+        DonationCreate(**data)
+
+
+def test_timestamps_with_different_offsets_are_compared_as_instants():
+    data = valid_donation_data()
+    data["prepared_at"] = "2026-11-15T08:00:00+05:30"
+    data["available_from"] = "2026-11-15T09:00:00+05:30"
+    data["pickup_deadline"] = "2026-11-15T05:00:00+00:00"
+
+    donation = DonationCreate(**data)
+
+    assert donation.available_from.utcoffset() is not None
+    assert donation.pickup_deadline.utcoffset() is not None
+
+
+def test_deadline_before_available_from_in_utc_is_rejected():
+    data = valid_donation_data()
+    data["available_from"] = "2026-11-15T09:00:00+05:30"
+    data["pickup_deadline"] = "2026-11-15T08:00:00+05:30"
+
+    with pytest.raises(ValidationError):
+        DonationCreate(**data)
