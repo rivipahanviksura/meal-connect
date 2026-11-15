@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.db.models.donation import DonationStatus
+
 
 class DonationCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -40,3 +42,24 @@ class DonationCreate(BaseModel):
             )
 
         return self
+
+
+class DonationBrowseResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    donation_id: int
+    title: str
+    category: str
+    description: str | None
+    total_quantity: Decimal
+    allocated_quantity: Decimal
+    quantity_unit: str
+    allergen_info: str | None
+    storage_instructions: str | None
+    prepared_at: datetime | None
+    available_from: datetime
+    pickup_deadline: datetime
+    pickup_address: str
+    pickup_city: str
+    status: DonationStatus
+    created_at: datetime
