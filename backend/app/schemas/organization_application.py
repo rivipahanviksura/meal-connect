@@ -1,6 +1,7 @@
+from datetime import date
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class ApplicationDetails(BaseModel):
@@ -14,15 +15,35 @@ class ApplicationDetails(BaseModel):
     city: str = Field(min_length=1, max_length=120)
     district: str | None = Field(default=None, min_length=1, max_length=120)
     representative_name: str = Field(min_length=1, max_length=180)
+    representative_designation: str | None = Field(default=None, min_length=1, max_length=100)
 
 
 class BusinessApplication(ApplicationDetails):
     organization_type: Literal["business"]
     business_subtype: Literal["restaurant", "bakery"]
+    pickup_location: str | None = Field(default=None, min_length=1, max_length=255)
+
+
+class NgoOperationalDetails(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    operating_area: str | None = Field(default=None, min_length=1, max_length=255)
+    distribution_area: str | None = Field(default=None, min_length=1, max_length=255)
+    operational_capability: str | None = Field(default=None, min_length=1, max_length=255)
 
 
 class NgoApplication(ApplicationDetails):
     organization_type: Literal["ngo"]
+    registration_authority: str | None = Field(default=None, min_length=1, max_length=180)
+    registration_date: date | None = None
+    operational_details: NgoOperationalDetails | None = None
+
+    @field_validator("registration_date")
+    @classmethod
+    def validate_registration_date(cls, value: date | None) -> date | None:
+        if value is not None and value > date.today():
+            raise ValueError("Registration date cannot be in the future")
+        return value
 
 
 ApplicationRequest = Annotated[

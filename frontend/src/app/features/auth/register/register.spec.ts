@@ -139,6 +139,14 @@ describe('Register', () => {
 
     return startSubmission(http, page, {
       organization_type: 'ngo',
+      representative_designation: 'Coordinator',
+      registration_authority: 'Example Registration Authority',
+      registration_date: '2020-01-01',
+      operational_details: {
+        operating_area: 'Western Province',
+        distribution_area: 'Colombo District',
+        operational_capability: 'Local food distribution',
+      },
       name: 'Community Relief Foundation',
       registration_number: 'EXAMPLE-123',
       contact_email: 'contact@example.com',
@@ -257,6 +265,8 @@ describe('Register', () => {
       const certificate = startSubmission(http, page, {
         organization_type: 'business',
         business_subtype: businessType,
+        pickup_location: 'Rear entrance',
+        representative_designation: 'Owner',
         name: 'Example Food Business',
         registration_number: 'EXAMPLE-456',
         contact_email: 'business@example.com',

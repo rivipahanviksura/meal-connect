@@ -163,16 +163,24 @@ interface ApplicationDetails {
   city: string;
   district?: string;
   representative_name: string;
+  representative_designation?: string;
 }
 
 export interface CreateNgoApplicationRequest extends ApplicationDetails {
   organization_type: 'ngo';
+  registration_authority?: string;
+  registration_date?: string;
+  operational_details?: {
+    operating_area?: string;
+    distribution_area?: string;
+    operational_capability?: string;
+  };
 }
 
 export interface CreateBusinessApplicationRequest extends ApplicationDetails {
   organization_type: 'business';
-  // Confirm the JSON key against the backend schema when the endpoint is implemented.
   business_subtype: 'restaurant' | 'bakery';
+  pickup_location?: string;
 }
 
 export type CreateApplicationRequest =

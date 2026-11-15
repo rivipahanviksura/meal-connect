@@ -19,7 +19,6 @@ from app.schemas.organization_application import (
     ApplicationPagination,
     ApplicationRequest,
     ApplicationSummary,
-    ApplicationDetails
 )
 from app.services.application_submission import (
     MAX_DOCUMENT_BYTES,
@@ -34,6 +33,7 @@ from app.services.organization_application import (
     ApplicationAlreadyExistsError,
     RegistrationNumberAlreadyExistsError,
     create_application_draft,
+    get_application_details,
     get_own_application,
 )
 
@@ -68,10 +68,7 @@ def application_summary(db: Session, organization: Organization) -> ApplicationS
         )
     draft_details = None
     if status == "draft":
-        draft_details = {
-            field: getattr(organization, field)
-            for field in ApplicationDetails.model_fields
-        }
+        draft_details = get_application_details(organization)
 
         if organization.type.value == "ngo":
             draft_details["organization_type"] = "ngo"

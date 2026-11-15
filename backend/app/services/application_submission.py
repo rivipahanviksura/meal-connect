@@ -19,12 +19,11 @@ from app.db.models.organization_document import (
 from app.db.models.status_history import StatusHistory
 from app.db.models.user import User
 from app.schemas.organization_application import (
-    ApplicationDetails,
     ApplicationDocument,
     ApplicationSubmitted,
     DocumentType,
 )
-from app.services.organization_application import require_applicant
+from app.services.organization_application import get_application_details, require_applicant
 
 MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
 REQUIRED_DOCUMENT_TYPE = "registration_certificate"
@@ -170,7 +169,7 @@ def submit_application(
             submitted_at=submitted_at,
             snapshot={
                 "organization_type": organization.type.value,
-                "details": {field: getattr(organization, field) for field in ApplicationDetails.model_fields},
+                "details": get_application_details(organization),
                 "document_ids": document_ids,
             },
         ))

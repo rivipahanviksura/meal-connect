@@ -511,7 +511,7 @@
               @if (businessForm.controls.representativeDesignation.touched &&
               businessForm.controls.representativeDesignation.invalid) {
                 <p class="field-error mc-field__error" role="alert">
-                  Enter the representative's designation.
+                  Enter a designation of up to 100 characters.
                 </p>
               }
             </div>
@@ -621,7 +621,7 @@
               @if (ngoForm.controls.registrationAuthority.touched &&
               ngoForm.controls.registrationAuthority.invalid) {
                 <p class="field-error mc-field__error" role="alert">
-                  Enter the registration authority.
+                  Enter a registration authority of up to 180 characters.
                 </p>
               }
             </div>
@@ -771,7 +771,7 @@
               @if (ngoForm.controls.representativeDesignation.touched &&
               ngoForm.controls.representativeDesignation.invalid) {
                 <p class="field-error mc-field__error" role="alert">
-                  Enter the representative's designation.
+                  Enter a designation of up to 100 characters.
                 </p>
               }
             </div>
@@ -1095,6 +1095,51 @@
                   <dt>Organization Phone</dt>
                   <dd>{{ details.contact_phone || 'Not provided' }}</dd>
                 </div>
+                @if (details.representative_designation; as value) {
+                  <div>
+                    <dt>Representative Designation</dt>
+                    <dd>{{ value }}</dd>
+                  </div>
+                }
+                @if (details.organization_type === 'business') {
+                @if (details.pickup_location; as value) {
+                  <div>
+                    <dt>Food Pickup Location</dt>
+                    <dd>{{ value }}</dd>
+                  </div>
+                }
+                } @else {
+                @if (details.registration_authority; as value) {
+                  <div>
+                    <dt>Registration Authority</dt>
+                    <dd>{{ value }}</dd>
+                  </div>
+                }
+                @if (details.registration_date; as value) {
+                  <div>
+                    <dt>Registration Date</dt>
+                    <dd>{{ value }}</dd>
+                  </div>
+                }
+                @if (details.operational_details?.operating_area; as value) {
+                  <div>
+                    <dt>Operating Area</dt>
+                    <dd>{{ value }}</dd>
+                  </div>
+                }
+                @if (details.operational_details?.distribution_area; as value) {
+                  <div>
+                    <dt>Food Distribution Area</dt>
+                    <dd>{{ value }}</dd>
+                  </div>
+                }
+                @if (details.operational_details?.operational_capability; as value) {
+                  <div>
+                    <dt>Operational Capability</dt>
+                    <dd>{{ value }}</dd>
+                  </div>
+                }
+                }
               </dl>
             </div>
           } @else {

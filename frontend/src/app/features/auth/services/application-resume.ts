@@ -13,6 +13,15 @@ export interface SavedDraft {
     address_line: string;
     city: string;
     representative_name: string;
+    representative_designation?: string | null;
+    pickup_location?: string | null;
+    registration_authority?: string | null;
+    registration_date?: string | null;
+    operational_details?: {
+      operating_area?: string | null;
+      distribution_area?: string | null;
+      operational_capability?: string | null;
+    } | null;
   };
 }
 

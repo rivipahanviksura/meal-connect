@@ -75,12 +75,13 @@ function registrationDateValidator(
     : null;
 }
 
-const requiredText = () =>
+const requiredText = (maxLength = 255) =>
   new FormControl('', {
     nonNullable: true,
     validators: [
       Validators.required,
-      Validators.maxLength(255)
+      Validators.pattern(/\S/),
+      Validators.maxLength(maxLength)
     ]
   });
 
@@ -179,13 +180,13 @@ export class Register {
     }),
 
     contactPhone: requiredText(),
-    representativeDesignation: requiredText()
+    representativeDesignation: requiredText(100)
   });
 
   readonly ngoForm = new FormGroup({
     ngoName: requiredText(),
     registrationNumber: requiredText(),
-    registrationAuthority: requiredText(),
+    registrationAuthority: requiredText(180),
 
     registrationDate: new FormControl('', {
       nonNullable: true,
@@ -208,7 +209,7 @@ export class Register {
     }),
 
     contactPhone: requiredText(),
-    representativeDesignation: requiredText(),
+    representativeDesignation: requiredText(100),
     distributionArea: requiredText(),
     operationalCapability: requiredText()
   });
@@ -448,6 +449,13 @@ export class Register {
 
     return {
       organization_type: 'ngo',
+      registration_authority: organization.registrationAuthority.trim(),
+      registration_date: organization.registrationDate,
+      operational_details: {
+        operating_area: organization.operatingArea.trim(),
+        distribution_area: organization.distributionArea.trim(),
+        operational_capability: organization.operationalCapability.trim(),
+      },
       name,
       registration_number: organization.registrationNumber.trim() || undefined,
       contact_email: organization.contactEmail.trim().toLowerCase(),
@@ -455,6 +463,7 @@ export class Register {
       address_line: addressLine,
       city,
       representative_name: representativeName,
+      representative_designation: organization.representativeDesignation.trim(),
     };
   }
   buildBusinessApplicationRequest(): CreateBusinessApplicationRequest | null {
@@ -484,6 +493,7 @@ export class Register {
     return {
       organization_type: 'business',
       business_subtype: subtype,
+      pickup_location: organization.pickupLocation.trim(),
       name,
       registration_number: organization.registrationNumber.trim() || undefined,
       contact_email: organization.contactEmail.trim().toLowerCase(),
@@ -491,6 +501,7 @@ export class Register {
       address_line: addressLine,
       city,
       representative_name: representativeName,
+      representative_designation: organization.representativeDesignation.trim(),
     };
   }
 
