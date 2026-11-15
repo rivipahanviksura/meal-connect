@@ -46,7 +46,7 @@ class ApplicationSummary(BaseModel):
     name: str
     status: Literal["draft", "pending_verification", "verified", "rejected", "suspended"]
     review_note: str | None = None
-
+    draft_details: ApplicationRequest | None = None
 
 class ApplicationPagination(BaseModel):
     page: Literal[1] = 1

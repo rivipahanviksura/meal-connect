@@ -20,7 +20,8 @@ import {
 
 import { HttpErrorResponse } from '@angular/common/http';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import { concatMap, finalize, from, last, of, startWith, tap } from 'rxjs';
+import { concatMap, finalize, from, last, map, of, startWith, tap } from 'rxjs';
+import { ApplicationResume } from '../services/application-resume';
 
 
 export type AccountType = 'business' | 'ngo';
@@ -104,6 +105,10 @@ export class Register {
   // 1: Account Details
   // 2: Organization Details
   readonly currentStep = signal(0);
+  readonly resumeRepresentativeName = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.required, Validators.pattern(/\S/), Validators.maxLength(180)],
+  });
   readonly registrationError = signal<string | null>(null);
 
   readonly accountForm = new FormGroup(
@@ -244,6 +249,13 @@ export class Register {
         : this.ngoForm;
 
     form.markAllAsTouched();
+    if (this.resumedApplication?.draft === null) {
+      this.resumeRepresentativeName.markAsTouched();
+
+      if (this.resumeRepresentativeName.invalid) {
+        return false;
+      }
+    }
 
     if (form.invalid) {
       return false;
@@ -426,7 +438,9 @@ export class Register {
     const name = organization.ngoName.trim();
     const addressLine = organization.registeredAddress.trim();
     const city = organization.city.trim();
-    const representativeName = `${account.firstName.trim()} ${account.lastName.trim()}`.trim();
+    const representativeName = this.resumedApplication?.draft === null
+      ? this.resumeRepresentativeName.value.trim()
+      : `${account.firstName.trim()} ${account.lastName.trim()}`.trim();
 
     if (!name || !addressLine || !city || !representativeName) {
       return null;
@@ -459,7 +473,9 @@ export class Register {
     const name = organization.businessName.trim();
     const addressLine = organization.registeredAddress.trim();
     const city = organization.city.trim();
-    const representativeName = `${account.firstName.trim()} ${account.lastName.trim()}`.trim();
+    const representativeName = this.resumedApplication?.draft === null
+      ? this.resumeRepresentativeName.value.trim()
+      : `${account.firstName.trim()} ${account.lastName.trim()}`.trim();
 
     if (!name || !addressLine || !city || !representativeName) {
       return null;
@@ -604,12 +620,13 @@ export class Register {
       return;
     }
 
-    const account = this.buildAccountRegistrationRequest();
+    const resume = this.resumedApplication;
+    const account = resume ? null : this.buildAccountRegistrationRequest();
     const application = this.selectedAccountType() === 'business'
       ? this.buildBusinessApplicationRequest()
       : this.buildNgoApplicationRequest();
 
-    if (!account || !application) {
+    if ((!resume && !account) || (this.draftApplicationId() === null && !application)) {
       this.applicationSubmitError.set(
         'Review your account and organization details before submitting.',
       );
@@ -620,24 +637,28 @@ export class Register {
     this.applicationSubmitError.set(null);
     this.isSubmittingApplication.set(true);
 
-    const createAccount$ = this.accountCreated()
-      ? of(null)
-      : this.registrationApi.registerAccount(account).pipe(
-        tap(() => this.accountCreated.set(true)),
+    const accessToken$ = resume
+      ? of(resume.accessToken)
+      : (this.accountCreated()
+          ? of(null)
+          : this.registrationApi.registerAccount(account!).pipe(
+            tap(() => this.accountCreated.set(true)),
+          )
+      ).pipe(
+        concatMap(() => this.registrationApi.login({
+          email: account!.email,
+          password: account!.password,
+        })),
+        map(({ data }) => data.access_token),
       );
 
-    createAccount$.pipe(
-      concatMap(() => this.registrationApi.login({
-        email: account.email,
-        password: account.password,
-      })),
-      concatMap(({ data }) => {
-        const token = data.access_token;
+    accessToken$.pipe(
+      concatMap((token) => {
         const draftId = this.draftApplicationId();
 
         const applicationId$ = draftId !== null
           ? of(draftId)
-          : this.registrationApi.createApplication(application, token).pipe(
+          : this.registrationApi.createApplication(application!, token).pipe(
             concatMap(({ data: draft }) => {
               this.draftApplicationId.set(draft.application_id);
               return of(draft.application_id);
@@ -691,6 +712,11 @@ export class Register {
           return;
         }
 
+        if (resume && response instanceof HttpErrorResponse && response.status === 401) {
+          this.applicationSubmitError.set('Your session has expired. Log in again to continue your application.');
+          return;
+        }
+
         const message = response instanceof HttpErrorResponse
           ? response.error?.error?.message
           : undefined;
@@ -702,6 +728,27 @@ export class Register {
         );
       },
     });
+  }
+  private readonly applicationResume = inject(ApplicationResume);
+  readonly resumedApplication = this.applicationResume.context();
+
+  constructor() {
+    const resume = this.resumedApplication;
+
+    if (resume) {
+      this.applicationResume.context.set(null);
+      this.accountCreated.set(true);
+      this.accountForm.controls.email.setValue(resume.email);
+
+      if (resume.draft === null) {
+        this.selectedAccountType.set(resume.accountType);
+        this.currentStep.set(2);
+      } else {
+        this.selectedAccountType.set(resume.draft.draft_details.organization_type);
+        this.draftApplicationId.set(resume.draft.application_id);
+        this.currentStep.set(3);
+      }
+    }
   }
 
 

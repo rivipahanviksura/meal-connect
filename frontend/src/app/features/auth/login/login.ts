@@ -10,6 +10,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, EMPTY, finalize, map, of, switchMap } from 'rxjs';
 
 import { RegistrationApi } from '../services/registration-api';
+import { ApplicationResume, type SavedDraft } from '../services/application-resume';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-login',
@@ -54,6 +56,7 @@ export class Login {
     }
 
     this.rejectedApplication.set(null);
+    this.applicationResume.context.set(null);
     this.resubmitError.set(null);
     this.correctionError.set(null);
     this.correctionMessage.set(null);
@@ -82,7 +85,36 @@ export class Login {
 
         return this.registrationApi.getMyApplications(data.access_token).pipe(
           map(({ data: applications }) => {
+            if (applications.length === 0) {
+              this.applicationResume.context.set({
+                draft: null,
+                accountType: data.user.role === 'ngo_staff' ? 'ngo' : 'business',
+                email: data.user.email,
+                accessToken: data.access_token,
+              });
+
+              return this.getApplicationStatusMessage(applications);
+            }
             const application = applications[0];
+            const draft = application as Partial<SavedDraft> | undefined;
+
+            if (
+              draft?.status === 'draft' &&
+              typeof draft.application_id === 'number' &&
+              Number.isSafeInteger(draft.application_id) &&
+              draft.application_id > 0 &&
+              draft.draft_details
+            ) {
+              this.applicationResume.context.set({
+                draft: {
+                  application_id: draft.application_id,
+                  status: 'draft',
+                  draft_details: draft.draft_details,
+                },
+                email: data.user.email,
+                accessToken: data.access_token,
+              });
+            }
             if (
               application && typeof application === 'object' &&
               'status' in application && application.status === 'rejected' &&
@@ -290,6 +322,14 @@ export class Login {
         return 'Your organization verification has been suspended.';
       default:
         return 'Your application status could not be determined.';
+    }
+  }
+  private readonly router = inject(Router);
+  readonly applicationResume = inject(ApplicationResume);
+
+  continueApplication(): void {
+    if (this.applicationResume.context()) {
+      void this.router.navigateByUrl('/register');
     }
   }
 }

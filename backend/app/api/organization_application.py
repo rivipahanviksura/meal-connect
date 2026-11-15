@@ -19,6 +19,7 @@ from app.schemas.organization_application import (
     ApplicationPagination,
     ApplicationRequest,
     ApplicationSummary,
+    ApplicationDetails
 )
 from app.services.application_submission import (
     MAX_DOCUMENT_BYTES,
@@ -65,12 +66,26 @@ def application_summary(db: Session, organization: Organization) -> ApplicationS
             )
             .limit(1)
         )
+    draft_details = None
+    if status == "draft":
+        draft_details = {
+            field: getattr(organization, field)
+            for field in ApplicationDetails.model_fields
+        }
+
+        if organization.type.value == "ngo":
+            draft_details["organization_type"] = "ngo"
+        else:
+            draft_details["organization_type"] = "business"
+            draft_details["business_subtype"] = organization.type.value
+
     return ApplicationSummary(
         application_id=organization.organization_id,
         organization_id=organization.organization_id,
         name=organization.name,
         status=status,
         review_note=review_note,
+        draft_details=draft_details,
     )
 
 

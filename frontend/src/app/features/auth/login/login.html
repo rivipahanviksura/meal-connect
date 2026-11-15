@@ -11,6 +11,11 @@
     @if (loginMessage(); as message) {
       <p role="status">{{ message }}</p>
     }
+    @if (applicationResume.context()) {
+      <button type="button" (click)="continueApplication()">
+        Continue application
+      </button>
+    }
 
     <div class="mc-field">
       <label class="mc-field__label" for="login-email">Email address</label>

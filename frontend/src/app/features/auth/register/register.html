@@ -327,6 +327,25 @@
           </p>
 
           <div class="form-grid mc-form-grid">
+            @if (resumedApplication && resumedApplication.draft === null) {
+              <div class="form-field full-width mc-field mc-field--full">
+                <label for="resumeRepresentativeName">Authorized Representative Name *</label>
+                <input
+                  id="resumeRepresentativeName"
+                  class="mc-field__input"
+                  type="text"
+                  autocomplete="name"
+                  maxlength="180"
+                  [formControl]="resumeRepresentativeName"
+                  required
+                />
+                @if (resumeRepresentativeName.touched && resumeRepresentativeName.invalid) {
+                  <p class="field-error mc-field__error" role="alert">
+                    Enter the authorized representative's name.
+                  </p>
+                }
+              </div>
+            }
 
             <!-- Business Name -->
             <div class="form-field full-width mc-field mc-field--full">
@@ -415,9 +434,11 @@
               />
               @if (businessCity.touched && businessCity.invalid) {
                 <p class="mc-field__error" id="business-city-error">
-                  {{ businessCity.hasError('required')
-                  ? 'Enter the registered city.'
-                  : 'Use 255 characters or fewer.' }}
+                  {{
+                    businessCity.hasError('required')
+                      ? 'Enter the registered city.'
+                      : 'Use 255 characters or fewer.'
+                  }}
                 </p>
               }
             </div>
@@ -498,12 +519,14 @@
           </div>
 
           <div class="register-actions form-actions">
-            <button
-              type="button"
-              class="secondary-action"
-              (click)="backToAccountDetails()">
-              Back
-            </button>
+            @if (!resumedApplication || resumedApplication.draft !== null) {
+              <button
+                type="button"
+                class="secondary-action"
+                (click)="backToAccountDetails()">
+                Back
+              </button>
+            }
 
             <button type="submit" class="primary-action">
               Validate Organization Details
@@ -529,6 +552,25 @@
           </p>
 
           <div class="form-grid mc-form-grid">
+            @if (resumedApplication && resumedApplication.draft === null) {
+              <div class="form-field full-width mc-field mc-field--full">
+                <label for="resumeRepresentativeName">Authorized Representative Name *</label>
+                <input
+                  id="resumeRepresentativeName"
+                  class="mc-field__input"
+                  type="text"
+                  autocomplete="name"
+                  maxlength="180"
+                  [formControl]="resumeRepresentativeName"
+                  required
+                />
+                @if (resumeRepresentativeName.touched && resumeRepresentativeName.invalid) {
+                  <p class="field-error mc-field__error" role="alert">
+                    Enter the authorized representative's name.
+                  </p>
+                }
+              </div>
+            }
 
             <!-- NGO Name -->
             <div class="form-field full-width mc-field mc-field--full">
@@ -651,9 +693,11 @@
               />
               @if (city.touched && city.invalid) {
                 <p class="mc-field__error" id="ngo-city-error">
-                  {{ city.hasError('required')
-                  ? 'Enter the registered city.'
-                  : 'Use 255 characters or fewer.' }}
+                  {{
+                    city.hasError('required')
+                      ? 'Enter the registered city.'
+                      : 'Use 255 characters or fewer.'
+                  }}
                 </p>
               }
             </div>
@@ -775,12 +819,14 @@
           </div>
 
           <div class="register-actions form-actions">
-            <button
-              type="button"
-              class="secondary-action"
-              (click)="backToAccountDetails()">
-              Back
-            </button>
+            @if (!resumedApplication || resumedApplication.draft !== null) {
+              <button
+                type="button"
+                class="secondary-action"
+                (click)="backToAccountDetails()">
+                Back
+              </button>
+            }
 
             <button
               type="submit"
@@ -977,7 +1023,7 @@
               type="button"
               class="secondary-action"
               (click)="backToOrganizationDetails()"
-              [disabled]="accountCreated() || isSubmittingApplication()">
+              [disabled]="draftApplicationId() !== null || isSubmittingApplication()">
               Back
             </button>
 
@@ -1003,157 +1049,210 @@
             Please check your information carefully before submitting
             your organization application for verification.
           </p>
+          @if (resumedApplication?.draft; as draft) {
+            @let details = draft.draft_details;
 
-          <!-- Account Summary -->
-          <div class="review-card">
-            <h3>1. Authorized Representative</h3>
-
-            <dl class="review-list">
-              <div>
-                <dt>Full Name</dt>
-                <dd>
-                  {{ accountForm.controls.firstName.value }}
-                  {{ accountForm.controls.lastName.value }}
-                </dd>
-              </div>
-
-              <div>
-                <dt>Login Email</dt>
-                <dd>{{ accountForm.controls.email.value }}</dd>
-              </div>
-
-              <div>
-                <dt>Contact Number</dt>
-                <dd>
-                  {{ accountForm.controls.phone.value || 'Not provided' }}
-                </dd>
-              </div>
-            </dl>
-
-            <p class="review-note">
-              Passwords are hidden for security.
-            </p>
-          </div>
-
-          <!-- Business Summary -->
-          @if (selectedAccountType() === 'business') {
             <div class="review-card">
-              <h3>2. Restaurant / Food Business</h3>
+              <h3>1. Authorized Representative</h3>
+
+              <dl class="review-list">
+                <div>
+                  <dt>Full Name</dt>
+                  <dd>{{ details.representative_name }}</dd>
+                </div>
+                <div>
+                  <dt>Login Email</dt>
+                  <dd>{{ accountForm.controls.email.value }}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div class="review-card">
+              <h3>2. Organization Details</h3>
 
               <dl class="review-list">
                 <div>
                   <dt>Registered Name</dt>
-                  <dd>{{ businessForm.controls.businessName.value }}</dd>
+                  <dd>{{ details.name }}</dd>
                 </div>
-
                 <div>
                   <dt>Registration Number</dt>
-                  <dd>{{ businessForm.controls.registrationNumber.value }}</dd>
+                  <dd>{{ details.registration_number || 'Not provided' }}</dd>
                 </div>
-
                 <div>
-                  <dt>Business Type</dt>
-                  <dd>{{ businessForm.controls.businessType.value }}</dd>
+                  <dt>Organization Type</dt>
+                  <dd>{{ details.business_subtype || 'NGO' }}</dd>
                 </div>
-
                 <div>
                   <dt>Registered Address</dt>
-                  <dd>{{ businessForm.controls.registeredAddress.value }}</dd>
-                  <dd>{{ businessForm.controls.city.value }}</dd>
+                  <dd>{{ details.address_line }}, {{ details.city }}</dd>
                 </div>
-
-                <div>
-                  <dt>Food Pickup Location</dt>
-                  <dd>{{ businessForm.controls.pickupLocation.value }}</dd>
-                </div>
-
                 <div>
                   <dt>Organization Email</dt>
-                  <dd>{{ businessForm.controls.contactEmail.value }}</dd>
+                  <dd>{{ details.contact_email }}</dd>
                 </div>
-
                 <div>
                   <dt>Organization Phone</dt>
-                  <dd>{{ businessForm.controls.contactPhone.value }}</dd>
-                </div>
-
-                <div>
-                  <dt>Representative Designation</dt>
-                  <dd>
-                    {{ businessForm.controls.representativeDesignation.value }}
-                  </dd>
+                  <dd>{{ details.contact_phone || 'Not provided' }}</dd>
                 </div>
               </dl>
             </div>
-          }
+          } @else {
 
-          <!-- NGO Summary -->
-          @if (selectedAccountType() === 'ngo') {
+            <!-- Account Summary -->
             <div class="review-card">
-              <h3>2. NGO / Charity Organization</h3>
+              <h3>1. Authorized Representative</h3>
 
               <dl class="review-list">
                 <div>
-                  <dt>Registered NGO Name</dt>
-                  <dd>{{ ngoForm.controls.ngoName.value }}</dd>
-                </div>
-
-                <div>
-                  <dt>Registration Number</dt>
-                  <dd>{{ ngoForm.controls.registrationNumber.value }}</dd>
-                </div>
-
-                <div>
-                  <dt>Registration Authority</dt>
-                  <dd>{{ ngoForm.controls.registrationAuthority.value }}</dd>
-                </div>
-
-                <div>
-                  <dt>Registration Date</dt>
-                  <dd>{{ ngoForm.controls.registrationDate.value }}</dd>
-                </div>
-
-                <div>
-                  <dt>Registered Address</dt>
-                  <dd>{{ ngoForm.controls.registeredAddress.value }}</dd>
-                  <dd>{{ ngoForm.controls.city.value }}</dd>
-                </div>
-
-                <div>
-                  <dt>Operating Area</dt>
-                  <dd>{{ ngoForm.controls.operatingArea.value }}</dd>
-                </div>
-
-                <div>
-                  <dt>Organization Email</dt>
-                  <dd>{{ ngoForm.controls.contactEmail.value }}</dd>
-                </div>
-
-                <div>
-                  <dt>Organization Phone</dt>
-                  <dd>{{ ngoForm.controls.contactPhone.value }}</dd>
-                </div>
-
-                <div>
-                  <dt>Representative Designation</dt>
+                  <dt>Full Name</dt>
                   <dd>
-                    {{ ngoForm.controls.representativeDesignation.value }}
+                    @if (resumedApplication && resumedApplication.draft === null) {
+                      {{ resumeRepresentativeName.value.trim() }}
+                    } @else {
+                      {{ accountForm.controls.firstName.value }}
+                      {{ accountForm.controls.lastName.value }}
+                    }
                   </dd>
                 </div>
 
                 <div>
-                  <dt>Food Distribution Area</dt>
-                  <dd>{{ ngoForm.controls.distributionArea.value }}</dd>
+                  <dt>Login Email</dt>
+                  <dd>{{ accountForm.controls.email.value }}</dd>
                 </div>
 
                 <div>
-                  <dt>Operational Capability</dt>
-                  <dd>{{ ngoForm.controls.operationalCapability.value }}</dd>
+                  <dt>Contact Number</dt>
+                  <dd>
+                    {{ accountForm.controls.phone.value || 'Not provided' }}
+                  </dd>
                 </div>
               </dl>
-            </div>
-          }
 
+              <p class="review-note">
+                Passwords are hidden for security.
+              </p>
+            </div>
+
+            <!-- Business Summary -->
+            @if (selectedAccountType() === 'business') {
+              <div class="review-card">
+                <h3>2. Restaurant / Food Business</h3>
+
+                <dl class="review-list">
+                  <div>
+                    <dt>Registered Name</dt>
+                    <dd>{{ businessForm.controls.businessName.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Registration Number</dt>
+                    <dd>{{ businessForm.controls.registrationNumber.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Business Type</dt>
+                    <dd>{{ businessForm.controls.businessType.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Registered Address</dt>
+                    <dd>{{ businessForm.controls.registeredAddress.value }}</dd>
+                    <dd>{{ businessForm.controls.city.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Food Pickup Location</dt>
+                    <dd>{{ businessForm.controls.pickupLocation.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Organization Email</dt>
+                    <dd>{{ businessForm.controls.contactEmail.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Organization Phone</dt>
+                    <dd>{{ businessForm.controls.contactPhone.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Representative Designation</dt>
+                    <dd>
+                      {{ businessForm.controls.representativeDesignation.value }}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            }
+
+            <!-- NGO Summary -->
+            @if (selectedAccountType() === 'ngo') {
+              <div class="review-card">
+                <h3>2. NGO / Charity Organization</h3>
+
+                <dl class="review-list">
+                  <div>
+                    <dt>Registered NGO Name</dt>
+                    <dd>{{ ngoForm.controls.ngoName.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Registration Number</dt>
+                    <dd>{{ ngoForm.controls.registrationNumber.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Registration Authority</dt>
+                    <dd>{{ ngoForm.controls.registrationAuthority.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Registration Date</dt>
+                    <dd>{{ ngoForm.controls.registrationDate.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Registered Address</dt>
+                    <dd>{{ ngoForm.controls.registeredAddress.value }}</dd>
+                    <dd>{{ ngoForm.controls.city.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Operating Area</dt>
+                    <dd>{{ ngoForm.controls.operatingArea.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Organization Email</dt>
+                    <dd>{{ ngoForm.controls.contactEmail.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Organization Phone</dt>
+                    <dd>{{ ngoForm.controls.contactPhone.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Representative Designation</dt>
+                    <dd>
+                      {{ ngoForm.controls.representativeDesignation.value }}
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt>Food Distribution Area</dt>
+                    <dd>{{ ngoForm.controls.distributionArea.value }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Operational Capability</dt>
+                    <dd>{{ ngoForm.controls.operationalCapability.value }}</dd>
+                  </div>
+                </dl>
+              </div>
+            }
+          }
           <!-- Document Summary -->
           <div class="review-card">
             <h3>3. Verification Documents</h3>
