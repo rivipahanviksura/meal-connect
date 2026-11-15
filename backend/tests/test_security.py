@@ -3,9 +3,9 @@ from datetime import datetime, timedelta, timezone
 import jwt
 import pytest
 from argon2 import PasswordHasher
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.core.security import (
     TokenConfigurationError,
     create_access_token,
@@ -166,3 +166,18 @@ def test_token_missing_required_claim_is_rejected(payload):
 
     with pytest.raises(jwt.MissingRequiredClaimError):
         decode_access_token(token)
+
+
+@pytest.mark.parametrize(
+    "overrides, field",
+    [
+        ({"jwt_algorithm": "unsupported"}, "jwt_algorithm"),
+        ({"access_token_expire_minutes": 0}, "access_token_expire_minutes"),
+        ({"access_token_expire_minutes": -1}, "access_token_expire_minutes"),
+    ],
+)
+def test_invalid_jwt_configuration_is_rejected(overrides, field):
+    with pytest.raises(ValidationError) as error:
+        Settings(_env_file=None, **overrides)
+
+    assert error.value.errors()[0]["loc"] == (field,)
