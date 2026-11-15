@@ -1,15 +1,14 @@
+from collections.abc import Generator
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import settings
 
 
 def get_engine():
     if settings.database_url is None:
-        raise RuntimeError(
-            "DATABASE_URL is not configured."
-        )
+        raise RuntimeError("DATABASE_URL is not configured.")
 
     database_url = settings.database_url.get_secret_value()
 
@@ -34,12 +33,17 @@ def get_session_factory():
     )
 
 
-def get_db():
-    """Provide a request-scoped session; release its connection on exit."""
+def get_db() -> Generator[Session, None, None]:
     engine = get_engine()
-    session = sessionmaker(bind=engine, autoflush=False)()
+    SessionLocal = sessionmaker(
+        bind=engine,
+        autoflush=False,
+        autocommit=False,
+    )
+    db = SessionLocal()
+
     try:
-        yield session
+        yield db
     finally:
-        session.close()
+        db.close()
         engine.dispose()
