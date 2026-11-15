@@ -10,57 +10,95 @@ from app.core.rbac import (
     require_pickup_verification,
     require_distribution_access,
 )
+from app.db.models.user import UserRole, AccountStatus
+from app.db.models.organization import (
+    OrganizationType,
+    VerificationStatus,
+)
+from app.db.models.donation_request import RequestStatus
+from app.db.models.pickup import PickupStatus
 
 
-def test_restaurant_allowed():
+@pytest.mark.parametrize(
+    "organization_type",
+    [OrganizationType.restaurant, OrganizationType.bakery],
+)
+def test_approved_business_allowed(organization_type):
     require_restaurant(
-        "restaurant", "active", "restaurant", "approved"
+        UserRole.business_staff,
+        AccountStatus.active,
+        organization_type,
+        VerificationStatus.approved,
     )
 
 
-def test_pending_restaurant_blocked():
+@pytest.mark.parametrize(
+    "verification_status",
+    [VerificationStatus.pending, VerificationStatus.rejected],
+)
+def test_unapproved_restaurant_blocked(verification_status):
     with pytest.raises(HTTPException) as error:
         require_restaurant(
-            "restaurant", "active", "restaurant", "pending"
+            UserRole.business_staff,
+            AccountStatus.active,
+            OrganizationType.restaurant,
+            verification_status,
         )
     assert error.value.status_code == 403
-
-
-def test_rejected_restaurant_blocked():
-    with pytest.raises(HTTPException):
-        require_restaurant(
-            "restaurant", "active", "restaurant", "rejected"
-        )
 
 
 def test_ngo_cannot_use_restaurant_role():
     with pytest.raises(HTTPException):
         require_restaurant(
-            "ngo", "active", "ngo", "approved"
+            UserRole.ngo_staff,
+            AccountStatus.active,
+            OrganizationType.ngo,
+            VerificationStatus.approved,
         )
 
 
-def test_ngo_allowed():
-    require_ngo("ngo", "active", "ngo", "approved")
+def test_approved_ngo_allowed():
+    require_ngo(
+        UserRole.ngo_staff,
+        AccountStatus.active,
+        OrganizationType.ngo,
+        VerificationStatus.approved,
+    )
 
 
-def test_pending_ngo_blocked():
-    with pytest.raises(HTTPException):
-        require_ngo("ngo", "active", "ngo", "pending")
+@pytest.mark.parametrize(
+    "verification_status",
+    [VerificationStatus.pending, VerificationStatus.rejected],
+)
+def test_unapproved_ngo_blocked(verification_status):
+    with pytest.raises(HTTPException) as error:
+        require_ngo(
+            UserRole.ngo_staff,
+            AccountStatus.active,
+            OrganizationType.ngo,
+            verification_status,
+        )
+    assert error.value.status_code == 403
 
 
 def test_admin_allowed():
-    require_admin("admin", "active")
+    require_admin(UserRole.admin, AccountStatus.active)
 
 
-def test_restaurant_cannot_be_admin():
+def test_business_cannot_be_admin():
     with pytest.raises(HTTPException):
-        require_admin("restaurant", "active")
+        require_admin(
+            UserRole.business_staff,
+            AccountStatus.active,
+        )
 
 
 def test_inactive_admin_blocked():
     with pytest.raises(HTTPException):
-        require_admin("admin", "suspended")
+        require_admin(
+            UserRole.admin,
+            AccountStatus.suspended,
+        )
 
 
 def test_own_organization_allowed():
@@ -74,53 +112,85 @@ def test_other_organization_blocked():
 
 
 def test_own_approved_pickup_allowed():
-    require_pickup_verification(1, 1, "approved")
+    require_pickup_verification(
+        1, 1, RequestStatus.approved
+    )
 
 
 def test_other_restaurant_pickup_blocked():
     with pytest.raises(HTTPException):
-        require_pickup_verification(1, 2, "approved")
+        require_pickup_verification(
+            1, 2, RequestStatus.approved
+        )
 
 
-def test_pending_pickup_request_blocked():
-    with pytest.raises(HTTPException):
-        require_pickup_verification(1, 1, "pending")
+@pytest.mark.parametrize(
+    "request_status",
+    [
+        RequestStatus.pending,
+        RequestStatus.rejected,
+        RequestStatus.cancelled,
+        RequestStatus.fulfilled,
+    ],
+)
+def test_unapproved_pickup_blocked(request_status):
+    with pytest.raises(HTTPException) as error:
+        require_pickup_verification(
+            1, 1, request_status
+        )
+    assert error.value.status_code == 403
 
 
-def test_ngo_distribution_allowed():
-    require_distribution_access(5, 5, "picked_up")
+@pytest.mark.parametrize(
+    "pickup_status",
+    [PickupStatus.picked_up, PickupStatus.delivered],
+)
+def test_ngo_distribution_allowed(pickup_status):
+    require_distribution_access(5, 5, pickup_status)
 
 
 def test_other_ngo_distribution_blocked():
     with pytest.raises(HTTPException):
-        require_distribution_access(5, 6, "picked_up")
+        require_distribution_access(
+            5, 6, PickupStatus.picked_up
+        )
 
 
-def test_distribution_before_collection_blocked():
-    with pytest.raises(HTTPException):
-        require_distribution_access(5, 5, "scheduled")
+@pytest.mark.parametrize(
+    "pickup_status",
+    [
+        PickupStatus.assigned,
+        PickupStatus.scheduled,
+        PickupStatus.failed,
+        PickupStatus.cancelled,
+    ],
+)
+def test_distribution_before_collection_blocked(pickup_status):
+    with pytest.raises(HTTPException) as error:
+        require_distribution_access(
+            5, 5, pickup_status
+        )
+    assert error.value.status_code == 403
 
 
 def test_suspended_restaurant_blocked():
     with pytest.raises(HTTPException) as error:
         require_restaurant(
-            "restaurant", "suspended", "restaurant", "approved"
+            UserRole.business_staff,
+            AccountStatus.suspended,
+            OrganizationType.restaurant,
+            VerificationStatus.approved,
         )
     assert error.value.status_code == 403
 
 
-def test_rejected_ngo_blocked():
+def test_business_cannot_use_ngo_role():
     with pytest.raises(HTTPException) as error:
         require_ngo(
-            "ngo", "active", "ngo", "rejected"
-        )
-    assert error.value.status_code == 403
-
-
-def test_restaurant_cannot_use_ngo_role():
-    with pytest.raises(HTTPException) as error:
-        require_ngo(
-            "restaurant", "active", "restaurant", "approved"
+            UserRole.business_staff,
+            AccountStatus.active,
+            OrganizationType.restaurant,
+            VerificationStatus.approved,
         )
     assert error.value.status_code == 403
 
@@ -128,19 +198,9 @@ def test_restaurant_cannot_use_ngo_role():
 def test_wrong_organization_type_blocked():
     with pytest.raises(HTTPException) as error:
         require_restaurant(
-            "restaurant", "active", "ngo", "approved"
+            UserRole.business_staff,
+            AccountStatus.active,
+            OrganizationType.ngo,
+            VerificationStatus.approved,
         )
     assert error.value.status_code == 403
-
-
-def test_rejected_pickup_request_blocked():
-    with pytest.raises(HTTPException) as error:
-        require_pickup_verification(1, 1, "rejected")
-    assert error.value.status_code == 403
-
-
-def test_cancelled_pickup_distribution_blocked():
-    with pytest.raises(HTTPException) as error:
-        require_distribution_access(5, 5, "cancelled")
-    assert error.value.status_code == 403
-
