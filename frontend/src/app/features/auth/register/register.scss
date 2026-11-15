@@ -1,0 +1,291 @@
+.register-page {
+  padding: 2rem 1rem 3rem;
+}
+
+.register-container {
+  width: min(100%, 900px);
+  margin: auto;
+}
+
+.register-heading {
+  margin-bottom: 2rem;
+
+  h1 {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+  }
+}
+
+.eyebrow {
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #166534;
+}
+
+.registration-progress {
+  margin-bottom: 2rem;
+}
+
+.account-types {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.account-type-card {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+  text-align: left;
+  padding: 1.5rem;
+  border: 2px solid #cbd5e1;
+  border-radius: 1rem;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  cursor: pointer;
+
+  &:hover, &.selected {
+    border-color: #15803d;
+  }
+
+  &.selected {
+    background: #f0fdf4;
+  }
+}
+
+.account-type-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.account-type-description {
+  color: #475569;
+}
+
+.selection-feedback {
+  margin-top: 1.25rem;
+}
+
+.account-form > p {
+  margin-bottom: 1.75rem;
+}
+
+.form-grid {
+  gap: 1.25rem;
+}
+
+.register-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.form-actions {
+  justify-content: space-between;
+}
+
+.primary-action, .secondary-action {
+  padding: .875rem 1.75rem;
+  border-radius: .65rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary-action {
+  border: 1px solid #166534;
+  background: #166534;
+  color: white;
+
+  &:disabled {
+    border-color: #94a3b8;
+    background: #94a3b8;
+    cursor: not-allowed;
+  }
+}
+
+.secondary-action {
+  border: 1px solid #94a3b8;
+  background: white;
+  color: #0f172a;
+
+  &:hover {
+    background: #f1f5f9;
+  }
+}
+
+.organization-form .ng-touched.ng-invalid:is(.mc-field__input, .mc-field__select, .mc-field__textarea) {
+  border-color: var(--mc-color-danger);
+}
+
+.documents-description, .review-description {
+  margin-bottom: 1.5rem;
+  color: #475569;
+}
+
+.upload-requirements, .review-notice {
+  padding: 1.25rem;
+  border: 1px solid #bfdbfe;
+  border-radius: .75rem;
+  background: #eff6ff;
+}
+
+.upload-requirements {
+  margin-bottom: 1.5rem;
+
+  p {
+    margin: .4rem 0 0;
+  }
+}
+
+.document-upload-card, .review-card {
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: .85rem;
+  background: white;
+}
+
+.document-upload-card {
+  label {
+    display: block;
+    margin-bottom: .6rem;
+    font-weight: 600;
+  }
+
+  input[type='file'] {
+    display: block;
+    max-width: 100%;
+  }
+}
+
+.required-marker {
+  color: #b91c1c;
+}
+
+.selected-document {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .75rem;
+  margin-top: 1rem;
+  padding: .85rem;
+  border-radius: .6rem;
+  background: #f0fdf4;
+
+  span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.remove-document {
+  padding: .5rem .85rem;
+  border: 1px solid #b91c1c;
+  border-radius: .5rem;
+  background: white;
+  color: #991b1b;
+  font: inherit;
+  cursor: pointer;
+}
+
+.document-error {
+  margin-top: 1rem;
+  padding: .85rem 1rem;
+  border: 1px solid #fca5a5;
+  border-radius: .6rem;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.document-summary {
+  margin-top: 1rem;
+}
+
+.review-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+
+  dt {
+    color: #64748b;
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+}
+
+.review-note {
+  color: #64748b;
+}
+
+.review-documents {
+  padding-left: 1.25rem;
+
+  li {
+    margin-bottom: .75rem;
+  }
+
+  strong, span {
+    overflow-wrap: anywhere;
+  }
+}
+
+.applicant-declarations {
+  min-width: 0;
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+  border: 1px solid #cbd5e1;
+  border-radius: .85rem;
+
+  legend {
+    font-weight: 700;
+  }
+}
+
+.declaration-option {
+  display: flex;
+  align-items: flex-start;
+  gap: .85rem;
+  padding: .85rem 0;
+  cursor: pointer;
+
+  input[type='checkbox'] {
+    flex: 0 0 auto;
+    width: 1.2rem;
+    height: 1.2rem;
+    margin-top: .2rem;
+    accent-color: #166534;
+  }
+}
+
+.declaration-confirmation {
+  color: #166534;
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .register-page {
+    padding: 1.25rem .75rem 2rem;
+  }
+  .account-types, .form-grid, .review-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .register-actions {
+    flex-direction: column-reverse;
+  }
+  .document-upload-card, .review-card, .applicant-declarations {
+    padding: 1rem;
+  }
+  .selected-document {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
