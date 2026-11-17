@@ -1,12 +1,13 @@
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import (
     AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
+    computed_field,
     field_serializer,
     field_validator,
     model_validator,
@@ -100,3 +101,107 @@ class DonationResponseData(BaseModel):
 
 class DonationResponse(BaseModel):
     data: DonationResponseData
+
+
+POSTGRES_MAX_OFFSET = (2**63) - 1
+
+
+class DonationBrowseQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    city: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+    )
+
+    category: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+    )
+
+    status: Literal["available", "partially_allocated"] | None = None
+
+    min_quantity: Decimal | None = Field(
+        default=None,
+        gt=0,
+        max_digits=12,
+        decimal_places=2,
+    )
+
+    available_before: AwareDatetime | None = None
+
+    sort: Literal[
+        "pickup_deadline",
+        "-pickup_deadline",
+        "created_at",
+        "-created_at",
+    ] = "pickup_deadline"
+
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=20, ge=1, le=100)
+
+    @model_validator(mode="after")
+    def validate_pagination_offset(self) -> Self:
+        offset = (self.page - 1) * self.page_size
+
+        if offset > POSTGRES_MAX_OFFSET:
+            raise ValueError(
+                "The requested page and page_size exceed "
+                "the supported pagination range."
+            )
+
+        return self
+
+
+class DonationListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    donation_id: int
+    organization_id: int
+    title: str
+    category: str
+    description: str | None
+    allergen_info: str | None
+    storage_instructions: str | None
+    prepared_at: datetime | None
+
+    total_quantity: Decimal
+    allocated_quantity: Decimal
+    quantity_unit: str
+
+    available_from: datetime
+    pickup_deadline: datetime
+    pickup_address: str
+    pickup_city: str
+    created_at: datetime
+
+    status: Literal["available", "partially_allocated"]
+
+    @computed_field
+    @property
+    def remaining_quantity(self) -> Decimal:
+        return self.total_quantity - self.allocated_quantity
+
+    @field_serializer(
+        "prepared_at", "available_from", "pickup_deadline", "created_at", when_used="json",
+    )
+    def serialize_utc(self, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.utcoffset() is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+
+class DonationPagination(BaseModel):
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+
+
+class DonationListResponse(BaseModel):
+    data: list[DonationListItem]
+    pagination: DonationPagination

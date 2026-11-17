@@ -246,6 +246,8 @@ GET /api/v1/donations?city=Colombo&category=prepared_meal&min_quantity=5&sort=pi
 
 Permitted sort keys: `pickup_deadline`, `-pickup_deadline`, `created_at`, `-created_at`. `min_quantity` refers to **remaining** stock. Invalid filters, sort keys or pagination should yield `422`.
 
+The verified NGO browse endpoint returns listings from approved restaurants and bakeries. Its results and pagination totals exclude listings from suspended publishers. `available_before` is an inclusive upper bound on `available_from` and applies within the current availability window.
+
 ### 4.5 NGO requests and business approval
 
 | Method | Path | Access | Request | Success / rules |
