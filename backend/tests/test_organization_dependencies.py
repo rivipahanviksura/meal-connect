@@ -2,6 +2,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
@@ -11,6 +12,7 @@ from app.api.dependencies import (
 )
 from app.core.exception_handlers import register_exception_handlers
 from app.db.models.organization import (
+    MembershipRole,
     OrganizationType,
     VerificationStatus,
 )
@@ -58,14 +60,14 @@ def create_organization(
     )
 
 
-def create_db(organization=None, count=1):
+def create_db(organization=None, count=1, membership_role=MembershipRole.staff):
     db = MagicMock()
 
     if organization is None:
         db.execute.return_value.all.return_value = []
     else:
         results = [
-            (SimpleNamespace(), organization)
+            (SimpleNamespace(membership_role=membership_role), organization)
             for _ in range(count)
         ]
         db.execute.return_value.all.return_value = results
@@ -179,3 +181,25 @@ def test_ngo_user_cannot_access_restaurant_organization():
     response = client.get("/organization")
 
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "user_role, organization_type, membership_role, expected_status",
+    [
+        (UserRole.business_staff, OrganizationType.restaurant, MembershipRole.collector, 403),
+        (UserRole.business_staff, OrganizationType.bakery, MembershipRole.coordinator, 403),
+        (UserRole.ngo_staff, OrganizationType.ngo, MembershipRole.collector, 403),
+        (UserRole.ngo_staff, OrganizationType.ngo, MembershipRole.coordinator, 200),
+    ],
+)
+def test_membership_role_controls_organization_access(
+    user_role, organization_type, membership_role, expected_status,
+):
+    user = create_user(role=user_role)
+    db = create_db(create_organization(organization_type), membership_role=membership_role)
+
+    response = create_client(user, db).get("/organization")
+
+    assert response.status_code == expected_status
+    if expected_status == 403:
+        assert response.json()["error"]["code"] == "FORBIDDEN"

@@ -60,17 +60,16 @@ def test_prepared_at_after_deadline_is_rejected():
         DonationCreate(**data)
 
 
-def test_client_cannot_supply_organization_id():
+def test_client_can_supply_organization_id_for_membership_check():
     data = valid_donation_data()
     data["organization_id"] = 10
 
-    with pytest.raises(ValidationError):
-        DonationCreate(**data)
+    assert DonationCreate(**data).organization_id == 10
 
 
-def test_client_cannot_supply_status():
+def test_client_cannot_supply_later_lifecycle_status():
     data = valid_donation_data()
-    data["status"] = "available"
+    data["status"] = "collected"
 
     with pytest.raises(ValidationError):
         DonationCreate(**data)

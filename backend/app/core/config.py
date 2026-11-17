@@ -19,12 +19,6 @@ class Settings(BaseSettings):
     jwt_algorithm: Literal["HS256"] = "HS256"
     access_token_expire_minutes: int = Field(default=30, gt=0)
 
-    # JWT configuration
-    jwt_algorithm: str = "HS256"
-
-    # Access token expiration time (30 minutes)
-    access_token_expire_minutes: int = 30
-
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
         env_file_encoding="utf-8",

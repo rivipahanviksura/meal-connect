@@ -1,14 +1,25 @@
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from app.db.models.donation import DonationStatus
 
 
 class DonationCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
+    organization_id: int | None = Field(default=None, gt=0)
+    status: Literal["draft", "available"] = "draft"
     title: str = Field(min_length=1, max_length=180)
     category: str = Field(min_length=1, max_length=100)
     description: str | None = None
@@ -19,30 +30,24 @@ class DonationCreate(BaseModel):
     allergen_info: str | None = None
     storage_instructions: str | None = None
 
-    prepared_at: datetime | None = None
-    available_from: datetime
-    pickup_deadline: datetime
+    prepared_at: AwareDatetime | None = None
+    available_from: AwareDatetime
+    pickup_deadline: AwareDatetime
 
     pickup_address: str = Field(min_length=1, max_length=255)
     pickup_city: str = Field(min_length=1, max_length=120)
 
+    @field_validator("prepared_at", "available_from", "pickup_deadline", mode="before")
+    @classmethod
+    def parse_iso_datetime(cls, value: object) -> datetime | None:
+        if value is None or isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            return datetime.fromisoformat(value)
+        raise ValueError("Use an ISO 8601 datetime with a timezone offset.")
+
     @model_validator(mode="after")
     def validate_timestamps(self):
-        timestamps = {
-            "available_from": self.available_from,
-            "pickup_deadline": self.pickup_deadline,
-            "prepared_at": self.prepared_at,
-        }
-
-        for field_name, value in timestamps.items():
-            if value is None:
-                continue
-
-            if value.tzinfo is None or value.utcoffset() is None:
-                raise ValueError(
-                    f"{field_name} must include a timezone offset."
-                )
-
         available_from_utc = self.available_from.astimezone(timezone.utc)
         pickup_deadline_utc = self.pickup_deadline.astimezone(timezone.utc)
 
@@ -84,6 +89,13 @@ class DonationResponseData(BaseModel):
     status: DonationStatus
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer(
+        "prepared_at", "available_from", "pickup_deadline", "created_at", "updated_at",
+        when_used="json",
+    )
+    def serialize_utc(self, value: datetime | None) -> datetime | None:
+        return None if value is None else value.astimezone(timezone.utc)
 
 
 class DonationResponse(BaseModel):

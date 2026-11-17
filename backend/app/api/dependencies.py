@@ -17,6 +17,7 @@ from app.db.models.organization import (
     OrganizationType,
     VerificationStatus,
     MemberStatus,
+    MembershipRole,
 )
 
 from app.db.models.donation import Donation
@@ -24,6 +25,12 @@ from app.db.models.donation_request import DonationRequest
 
 
 security = HTTPBearer(auto_error=False)
+BUSINESS_MEMBERSHIP_ROLES = frozenset({
+    MembershipRole.owner,
+    MembershipRole.manager,
+    MembershipRole.staff,
+})
+NGO_MEMBERSHIP_ROLES = BUSINESS_MEMBERSHIP_ROLES | {MembershipRole.coordinator}
 
 
 def get_current_user(
@@ -101,8 +108,6 @@ def get_current_organization(
     current_user: User = Depends(get_active_user),
     db: Session = Depends(get_db),
 ) -> Organization:
-
-
     # Map the user's role to the allowed organization types.
     if current_user.role == UserRole.business_staff:
         allowed_types = [
@@ -162,6 +167,18 @@ def get_current_organization(
             status_code=403,
             code="FORBIDDEN",
             message="Your organization is not approved.",
+        )
+
+    allowed_membership_roles = (
+        NGO_MEMBERSHIP_ROLES
+        if organization.type == OrganizationType.ngo
+        else BUSINESS_MEMBERSHIP_ROLES
+    )
+    if membership.membership_role not in allowed_membership_roles:
+        raise APIException(
+            status_code=403,
+            code="FORBIDDEN",
+            message="Your organization membership does not permit this operation.",
         )
 
     return organization
