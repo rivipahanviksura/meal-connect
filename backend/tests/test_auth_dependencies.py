@@ -209,4 +209,3 @@ def test_valid_jwt_returns_current_user(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"user_id": 1}
-

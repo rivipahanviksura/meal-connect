@@ -1,53 +1,51 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine, event
+from fastapi.testclient import TestClient
+from pydantic import SecretStr
+
+from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import StaticPool
-from sqlalchemy import BigInteger
 
-from app.db.base import Base
-from app.db.models.user import User
-from app.db.models.organization import Organization, OrganizationType, VerificationStatus
+from app.core.config import settings
+from app.core.security import create_access_token
+from app.db.session import get_db
+from app.main import app
 from app.db.models.donation import Donation, DonationStatus
-from app.services.donation_service import browse_available_donations
+from app.db.models.organization import (
+    MemberStatus,
+    MembershipRole,
+    Organization,
+    OrganizationMembership,
+    OrganizationType,
+    VerificationStatus,
+)
+from app.db.models.user import AccountStatus, User, UserRole
+from app.schemas.donation import DonationBrowseQuery
+from app.services.donation_browse_service import browse_available_donations
 
 
-@compiles(BigInteger, "sqlite")
-def compile_big_integer(element, compiler, **kwargs):
-    return "INTEGER"
+NOW = datetime(2026, 11, 14, 10, 0, tzinfo=timezone.utc)
 
 
+# SQLite test database එක සඳහා පමණක් JSONB support.
 @compiles(JSONB, "sqlite")
-def compile_jsonb(element, compiler, **kwargs):
+def compile_jsonb_for_sqlite(element, compiler, **kwargs):
     return "JSON"
 
 
 @pytest.fixture
-def db_session():
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+def db():
+    engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
 
-    @event.listens_for(engine, "connect")
-    def enable_foreign_keys(connection, record):
-        cursor = connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
-    Base.metadata.create_all(
-        engine,
-        tables=[
-            User.__table__,
-            Organization.__table__,
-            Donation.__table__,
-        ],
-    )
+    User.__table__.create(engine)
+    Organization.__table__.create(engine)
+    OrganizationMembership.__table__.create(engine)
+    Donation.__table__.create(engine)
 
     with Session(engine) as session:
         yield session
@@ -55,394 +53,312 @@ def db_session():
     engine.dispose()
 
 
-@pytest.fixture
-def donation_owner(db_session):
+def create_ngo_account(
+    db,
+    *,
+    role=UserRole.ngo_staff,
+    account_status=AccountStatus.active,
+    organization_type=OrganizationType.ngo,
+    verification_status=VerificationStatus.approved,
+    member_status=MemberStatus.active,
+    with_membership=True,
+):
     user = User(
+        user_id=1,
         first_name="Test",
-        last_name="Business",
-        email="business@example.com",
-        password_hash="test-password-hash",
-        role="business_staff",
+        last_name="User",
+        email="ngo@example.com",
+        password_hash="test-only-placeholder",
+        role=role,
+        account_status=account_status,
     )
-    db_session.add(user)
-    db_session.flush()
 
     organization = Organization(
-        name="Test Restaurant",
-        type=OrganizationType.restaurant,
-        contact_email="restaurant@example.com",
-        address_line="Main Street",
-        city="Colombo",
-        verification_status=VerificationStatus.approved,
-        verified_by_user_id=user.user_id,
-    )
-    db_session.add(organization)
-    db_session.flush()
-
-    return user, organization
-
-
-def create_donation(
-    db,
-    owner,
-    title,
-    status=DonationStatus.available,
-    available_from=datetime(2026, 11, 15, 9, 0),
-    pickup_deadline=datetime(2026, 11, 15, 17, 0),
-    total_quantity=Decimal("25.00"),
-    allocated_quantity=Decimal("0.00"),
-):
-    user, organization = owner
-
-    donation = Donation(
-        organization_id=organization.organization_id,
-        created_by_user_id=user.user_id,
-        title=title,
-        category="Vegetables",
-        description="Fresh surplus vegetables",
-        total_quantity=total_quantity,
-        allocated_quantity=allocated_quantity,
-        quantity_unit="kg",
-        available_from=available_from,
-        pickup_deadline=pickup_deadline,
-        pickup_address="Main Street",
-        pickup_city="Colombo",
-        status=status,
+        organization_id=1,
+        name="Test NGO",
+        type=organization_type,
+        contact_email="organization@example.com",
+        address_line="Test address",
+        city="Kurunegala",
+        verification_status=verification_status,
     )
 
-    db.add(donation)
+    db.add_all([user, organization])
     db.flush()
 
-    return donation
+    if with_membership:
+        db.add(
+            OrganizationMembership(
+                membership_id=1,
+                organization_id=1,
+                user_id=1,
+                membership_role=MembershipRole.owner,
+                member_status=member_status,
+            )
+        )
+
+    db.commit()
 
 
-TEST_NOW = datetime(2026, 11, 15, 12, 0)
+def create_donation(db, donation_id, **changes):
+    # Donations belong to a separate Business account.
+    if db.get(User, 2) is None:
+        db.add(
+            User(
+                user_id=2,
+                first_name="Business",
+                last_name="Owner",
+                email="business@example.com",
+                password_hash="test-only-placeholder",
+                role=UserRole.business_staff,
+                account_status=AccountStatus.active,
+            )
+        )
+        db.flush()
+
+    if db.get(Organization, 2) is None:
+        db.add(
+            Organization(
+                organization_id=2,
+                name="Test Restaurant",
+                type=OrganizationType.restaurant,
+                contact_email="restaurant@example.com",
+                address_line="Restaurant address",
+                city="Colombo",
+                verification_status=VerificationStatus.approved,
+            )
+        )
+        db.flush()
+
+        db.add(
+            OrganizationMembership(
+                membership_id=2,
+                organization_id=2,
+                user_id=2,
+                membership_role=MembershipRole.owner,
+                member_status=MemberStatus.active,
+            )
+        )
+        db.flush()
+
+    values = {
+        "donation_id": donation_id,
+        "organization_id": 2,
+        "created_by_user_id": 2,
+        "title": f"Donation {donation_id}",
+        "category": "prepared_meal",
+        "description": "Test food",
+        "total_quantity": Decimal("10.00"),
+        "allocated_quantity": Decimal("0.00"),
+        "quantity_unit": "portions",
+        "available_from": NOW - timedelta(hours=1),
+        "pickup_deadline": NOW + timedelta(hours=1),
+        "pickup_address": "Restaurant address",
+        "pickup_city": "Colombo",
+        "status": DonationStatus.available,
+        "created_at": NOW - timedelta(hours=2),
+    }
+
+    values.update(changes)
+    db.add(Donation(**values))
+    db.commit()
 
 
-def test_browse_returns_available_donations(db_session, donation_owner):
-    create_donation(
-        db_session,
-        donation_owner,
-        "Available vegetables",
-        status=DonationStatus.available,
+def browse(db, **filters):
+    return browse_available_donations(
+        db,
+        filters=DonationBrowseQuery(**filters),
+        now=NOW,
     )
 
-    results = browse_available_donations(
-        db_session,
-        current_time=TEST_NOW,
-    )
 
-    assert len(results) == 1
-    assert results[0].title == "Available vegetables"
+@pytest.fixture
+def client(db, monkeypatch):
+    monkeypatch.setattr(settings, "secret_key", SecretStr("meal29-test-only-nonproduction-secret"))
+    monkeypatch.setitem(app.dependency_overrides, get_db, lambda: db)
+    with TestClient(app, follow_redirects=False) as test_client:
+        yield test_client
 
 
-def test_browse_returns_partially_allocated_donations(
-    db_session,
-    donation_owner,
-):
-    create_donation(
-        db_session,
-        donation_owner,
-        "Partially allocated vegetables",
-        status=DonationStatus.partially_allocated,
-        total_quantity=Decimal("25.00"),
-        allocated_quantity=Decimal("10.00"),
-    )
+def ngo_headers():
+    return {"Authorization": f"Bearer {create_access_token(1)}"}
 
-    results = browse_available_donations(
-        db_session,
-        current_time=TEST_NOW,
-    )
 
-    assert len(results) == 1
-    assert results[0].allocated_quantity == Decimal("10.00")
+def test_browsing_requires_authentication(client):
+    response = client.get("/api/v1/donations")
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "AUTH_REQUIRED"
+
+
+@pytest.mark.parametrize("changes", [
+    {"verification_status": VerificationStatus.pending},
+    {"verification_status": VerificationStatus.suspended},
+    {"account_status": AccountStatus.disabled},
+    {"member_status": MemberStatus.invited},
+    {"role": UserRole.business_staff, "organization_type": OrganizationType.restaurant},
+    {"with_membership": False},
+])
+def test_unqualified_account_is_forbidden(db, client, changes):
+    create_ngo_account(db, **changes)
+
+    response = client.get("/api/v1/donations", headers=ngo_headers())
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"
+
+
+@pytest.mark.parametrize("params", [
+    {"page": 2**63 + 2, "page_size": 1},
+    {"sort": "wrong"},
+    {"city": "   "},
+    {"available_before": "2027-01-01T08:00:00"},
+])
+def test_invalid_browse_filters_return_validation_error(db, client, params):
+    create_ngo_account(db)
+
+    response = client.get("/api/v1/donations", headers=ngo_headers(), params=params)
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert response.json()["error"]["fields"]
+
+
+def test_verified_ngo_receives_paginated_list(db, client):
+    create_ngo_account(db)
+    now = datetime.now(timezone.utc)
+    window = dict(available_from=now - timedelta(hours=1), pickup_deadline=now + timedelta(hours=1))
+    create_donation(db, 1, **window)
+    create_donation(db, 2, **window)
+
+    response = client.get("/api/v1/donations", headers=ngo_headers(), params={
+        "city": "COLOMBO", "category": "prepared_meal", "page": 2, "page_size": 1,
+    })
+
+    assert response.status_code == 200
+    result = response.json()
+    assert [item["donation_id"] for item in result["data"]] == [2]
+    assert Decimal(result["data"][0]["remaining_quantity"]) == Decimal("10")
+    assert result["pagination"] == dict(page=2, page_size=1, total_items=2, total_pages=2)
+
+
+def test_available_donation_is_returned(db):
+    create_ngo_account(db)
+    create_donation(db, 1)
+
+    result = browse(db)
+
+    assert [item.donation_id for item in result.data] == [1]
+    assert result.data[0].remaining_quantity == Decimal("10.00")
+    assert result.pagination.total_items == 1
 
 
 @pytest.mark.parametrize(
-    "status",
+    "changes",
     [
-        DonationStatus.draft,
-        DonationStatus.fully_allocated,
-        DonationStatus.collected,
-        DonationStatus.expired,
-        DonationStatus.cancelled,
+        {"status": DonationStatus.draft},
+        {"status": DonationStatus.expired},
+        {"status": DonationStatus.cancelled},
+        {"status": DonationStatus.fully_allocated},
+        {"status": DonationStatus.collected},
+        {"pickup_deadline": NOW},
+        {"pickup_deadline": NOW - timedelta(minutes=1)},
+        {"available_from": NOW + timedelta(minutes=1)},
+        {"allocated_quantity": Decimal("10.00")},
     ],
 )
-def test_browse_excludes_unavailable_statuses(
-    db_session,
-    donation_owner,
-    status,
-):
-    create_donation(
-        db_session,
-        donation_owner,
-        f"{status.value} donation",
-        status=status,
-    )
+def test_unrequestable_donation_is_excluded(db, changes):
+    create_ngo_account(db)
+    create_donation(db, 1, **changes)
 
-    results = browse_available_donations(
-        db_session,
-        current_time=TEST_NOW,
-    )
+    result = browse(db)
 
-    assert results == []
+    assert result.data == []
+    assert result.pagination.total_items == 0
 
 
-def test_browse_excludes_donations_not_yet_available(
-    db_session,
-    donation_owner,
-):
-    create_donation(
-        db_session,
-        donation_owner,
-        "Future donation",
-        available_from=datetime(2026, 11, 15, 13, 0),
-    )
-
-    results = browse_available_donations(
-        db_session,
-        current_time=TEST_NOW,
-    )
-
-    assert results == []
-
-
-def test_browse_excludes_expired_deadlines(
-    db_session,
-    donation_owner,
-):
-    create_donation(
-        db_session,
-        donation_owner,
-        "Expired deadline",
-        pickup_deadline=datetime(2026, 11, 15, 11, 59),
-    )
-
-    results = browse_available_donations(
-        db_session,
-        current_time=TEST_NOW,
-    )
-
-    assert results == []
-
-
-def test_browse_excludes_fully_allocated_quantity(
-    db_session,
-    donation_owner,
-):
-    create_donation(
-        db_session,
-        donation_owner,
-        "No remaining quantity",
-        total_quantity=Decimal("25.00"),
-        allocated_quantity=Decimal("25.00"),
-    )
-
-    results = browse_available_donations(
-        db_session,
-        current_time=TEST_NOW,
-    )
-
-    assert results == []
-
-
-def test_browse_returns_only_donations_with_remaining_quantity(
-    db_session,
-    donation_owner,
-):
-    create_donation(
-        db_session,
-        donation_owner,
-        "Available donation",
-        total_quantity=Decimal("25.00"),
-        allocated_quantity=Decimal("5.00"),
-    )
+def test_remaining_quantity_filter(db):
+    create_ngo_account(db)
 
     create_donation(
-        db_session,
-        donation_owner,
-        "Fully allocated donation",
-        total_quantity=Decimal("25.00"),
-        allocated_quantity=Decimal("25.00"),
+        db,
+        1,
+        status=DonationStatus.partially_allocated,
+        allocated_quantity=Decimal("6.00"),
     )
 
-    results = browse_available_donations(
-        db_session,
-        current_time=TEST_NOW,
+    assert browse(db, min_quantity="5.00").data == []
+
+    result = browse(db, min_quantity="4.00")
+
+    assert [item.donation_id for item in result.data] == [1]
+    assert result.data[0].remaining_quantity == Decimal("4.00")
+
+
+def test_city_and_category_filters_ignore_case(db):
+    create_ngo_account(db)
+    create_donation(db, 1)
+
+    result = browse(
+        db,
+        city=" colombo ",
+        category="PREPARED_MEAL",
     )
 
-    assert len(results) == 1
-    assert results[0].title == "Available donation"
+    assert [item.donation_id for item in result.data] == [1]
+    assert browse(db, city="Kandy").data == []
 
 
-def test_browse_orders_by_pickup_deadline(
-    db_session,
-    donation_owner,
-):
-    create_donation(
-        db_session,
-        donation_owner,
-        "Later deadline",
-        pickup_deadline=datetime(2026, 11, 15, 18, 0),
-    )
+def test_pagination_and_deadline_sorting(db):
+    create_ngo_account(db)
 
-    create_donation(
-        db_session,
-        donation_owner,
-        "Earlier deadline",
-        pickup_deadline=datetime(2026, 11, 15, 14, 0),
-    )
-
-    results = browse_available_donations(
-        db_session,
-        current_time=TEST_NOW,
-    )
-
-    assert [item.title for item in results] == [
-        "Earlier deadline",
-        "Later deadline",
-    ]
-
-
-def test_verified_ngo_can_browse_donations(monkeypatch):
-    from types import SimpleNamespace
-    from unittest.mock import MagicMock
-
-    from fastapi import FastAPI
-    from fastapi.testclient import TestClient
-
-    from app.api.dependencies import (
-        get_active_user,
-        get_current_organization,
-    )
-    from app.api.donations import router
-    from app.db.session import get_db
-    from app.db.models.user import UserRole
-
-    user = SimpleNamespace(
-        user_id=10,
-        role=UserRole.ngo_staff,
-    )
-    organization = SimpleNamespace(
-        organization_id=20,
-    )
-
-    app = FastAPI()
-    app.include_router(router)
-
-    app.dependency_overrides[get_active_user] = lambda: user
-    app.dependency_overrides[get_current_organization] = (
-        lambda: organization
-    )
-    app.dependency_overrides[get_db] = lambda: MagicMock()
-
-    client = TestClient(app)
-    mock_browse = MagicMock(return_value=[])
-
-    monkeypatch.setattr(
-        "app.api.donations.browse_available_donations",
-        mock_browse,
-    )
-
-    response = client.get("/donations/")
-
-    assert response.status_code == 200
-    assert response.json() == []
-    mock_browse.assert_called_once()
-
-
-def test_unverified_ngo_cannot_browse_donations(monkeypatch):
-    from types import SimpleNamespace
-    from unittest.mock import MagicMock
-
-    from fastapi import FastAPI, HTTPException
-    from fastapi.testclient import TestClient
-
-    from app.api.dependencies import (
-        get_active_user,
-        get_current_organization,
-    )
-    from app.api.donations import router
-    from app.db.session import get_db
-    from app.db.models.user import UserRole
-
-    user = SimpleNamespace(
-        user_id=11,
-        role=UserRole.ngo_staff,
-    )
-
-    def reject_unverified_organization():
-        raise HTTPException(
-            status_code=403,
-            detail="Organization is not approved.",
+    for donation_id in range(1, 4):
+        create_donation(
+            db,
+            donation_id,
+            pickup_deadline=NOW + timedelta(hours=donation_id),
         )
 
-    app = FastAPI()
-    app.include_router(router)
-
-    app.dependency_overrides[get_active_user] = lambda: user
-    app.dependency_overrides[get_current_organization] = (
-        reject_unverified_organization
-    )
-    app.dependency_overrides[get_db] = lambda: MagicMock()
-
-    client = TestClient(app)
-    mock_browse = MagicMock(return_value=[])
-
-    monkeypatch.setattr(
-        "app.api.donations.browse_available_donations",
-        mock_browse,
+    result = browse(
+        db,
+        sort="-pickup_deadline",
+        page=2,
+        page_size=2,
     )
 
-    response = client.get("/donations/")
+    assert [item.donation_id for item in result.data] == [1]
+    assert result.pagination.total_items == 3
+    assert result.pagination.total_pages == 2
 
-    assert response.status_code == 403
-    mock_browse.assert_not_called()
+
+def test_ngo_can_browse_another_organizations_donation(db):
+    create_ngo_account(db)
+    create_donation(db, 1)
+
+    result = browse(db)
+
+    assert len(result.data) == 1
+    assert result.data[0].organization_id == 2
+    assert db.get(Organization, 1).type == OrganizationType.ngo
+    assert db.get(Organization, 2).type == OrganizationType.restaurant
 
 
-def test_business_user_cannot_browse_donations(monkeypatch):
-    from types import SimpleNamespace
-    from unittest.mock import MagicMock
+def test_suspended_publisher_is_excluded_from_data_and_count(db):
+    create_donation(db, 1)
+    assert browse(db).pagination.total_items == 1
 
-    from fastapi import FastAPI
-    from fastapi.testclient import TestClient
+    db.get(Organization, 2).verification_status = VerificationStatus.suspended
+    db.commit()
 
-    from app.api.dependencies import (
-        get_active_user,
-        get_current_organization,
-    )
-    from app.api.donations import router
-    from app.core.exception_handlers import APIException
-    from app.db.session import get_db
-    from app.db.models.user import UserRole
+    result = browse(db)
+    assert result.data == []
+    assert result.pagination.total_items == 0
 
-    user = SimpleNamespace(
-        user_id=12,
-        role=UserRole.business_staff,
-    )
-    organization = SimpleNamespace(
-        organization_id=30,
-    )
 
-    app = FastAPI()
-    app.include_router(router)
+def test_available_before_limits_listing_start(db):
+    create_donation(db, 1, available_from=NOW - timedelta(hours=2))
+    create_donation(db, 2, available_from=NOW)
 
-    app.dependency_overrides[get_active_user] = lambda: user
-    app.dependency_overrides[get_current_organization] = (
-        lambda: organization
-    )
-    app.dependency_overrides[get_db] = lambda: MagicMock()
+    result = browse(db, available_before=NOW - timedelta(hours=1))
 
-    client = TestClient(app)
-    mock_browse = MagicMock(return_value=[])
-
-    monkeypatch.setattr(
-        "app.api.donations.browse_available_donations",
-        mock_browse,
-    )
-
-    with pytest.raises(APIException) as exc_info:
-        client.get("/donations/")
-
-    assert exc_info.value.status_code == 403
-    mock_browse.assert_not_called()
+    assert [item.donation_id for item in result.data] == [1]
