@@ -1,6 +1,7 @@
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
+from app.core.exception_handlers import APIException
 from app.core.food_safety import (
     get_food_safety_guidance,
 )
@@ -15,8 +16,9 @@ router = APIRouter(
 def read_food_safety_guidance(location: str):
     try:
         return get_food_safety_guidance(location)
-    except ValueError:
-        raise HTTPException(
+    except ValueError as exc:
+        raise APIException(
             status_code=404,
-            detail="Guidance not found"
-        )
+            code="NOT_FOUND",
+            message="Guidance not found",
+        ) from exc
