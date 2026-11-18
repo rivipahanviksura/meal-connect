@@ -6,7 +6,7 @@ FastAPI backend for the Meal Connect MVP.
 ## Technology
 - Python
 - FastAPI
-- Uvicorn
+- uvicorn
 - PostgreSQL (integration planned)
 
 ## Local Setup
