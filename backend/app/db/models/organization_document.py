@@ -8,9 +8,11 @@ from sqlalchemy import (
     ForeignKey,
     Identity,
     Index,
+    LargeBinary,
     String,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -90,3 +92,27 @@ class OrganizationDocument(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+
+
+class OrganizationDocumentContent(Base):
+    __tablename__ = "organization_document_contents"
+
+    document_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("organization_documents.document_id"), primary_key=True
+    )
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+
+
+class OrganizationApplicationSubmission(Base):
+    __tablename__ = "organization_application_submissions"
+    __table_args__ = (Index("ix_application_submissions_org_id", "organization_id"),)
+
+    submission_id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    organization_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("organizations.organization_id"), nullable=False
+    )
+    submitted_by_user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.user_id"), nullable=False
+    )
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)

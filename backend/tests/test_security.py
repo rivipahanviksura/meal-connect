@@ -1,73 +1,88 @@
+from datetime import datetime, timedelta, timezone
+
+import jwt
 import pytest
 from argon2 import PasswordHasher
+from pydantic import SecretStr, ValidationError
+
+from app.core.config import Settings, settings
 from app.core.security import (
+    TokenConfigurationError,
+    create_access_token,
+    decode_access_token,
+    get_secret_key,
     hash_password,
-    verify_password,
     needs_rehash,
     verify_and_update,
+    verify_password,
 )
 
 
+@pytest.fixture(autouse=True)
+def test_secret_key(monkeypatch):
+    monkeypatch.setattr(
+        settings,
+        "secret_key",
+        SecretStr("test-only-secret-key-that-is-at-least-32-bytes"),
+    )
+
+
 def test_password_is_hashed():
-    password = "TestPassword@123"
-    stored_hash = hash_password(password)
+    password = "StrongPassword123"
+    hashed = hash_password(password)
 
-    assert stored_hash != password
-    assert stored_hash.startswith("$argon2id$")
-
-
-def test_correct_password():
-    password = "TestPassword@123"
-    stored_hash = hash_password(password)
-
-    assert verify_password(password, stored_hash) is True
+    assert hashed != password
+    assert hashed.startswith("$argon2id$")
 
 
-def test_wrong_password():
-    stored_hash = hash_password("TestPassword@123")
+def test_correct_password_is_verified():
+    hashed = hash_password("StrongPassword123")
 
-    assert verify_password("WrongPassword", stored_hash) is False
+    assert verify_password("StrongPassword123", hashed) is True
+
+
+def test_wrong_password_is_rejected():
+    hashed = hash_password("StrongPassword123")
+
+    assert verify_password("WrongPassword123", hashed) is False
 
 
 def test_unique_salt():
-    password = "TestPassword@123"
+    password = "StrongPassword123"
 
-    hash1 = hash_password(password)
-    hash2 = hash_password(password)
-
-    assert hash1 != hash2
+    assert hash_password(password) != hash_password(password)
 
 
-def test_invalid_hash():
-    assert verify_password("TestPassword@123", "invalid") is False
+def test_invalid_hash_is_rejected():
+    assert verify_password("password", "invalid-hash") is False
 
 
-def test_rehash_not_required():
-    stored_hash = hash_password("TestPassword@123")
+def test_needs_rehash_returns_boolean():
+    hashed = hash_password("StrongPassword123")
 
-    assert needs_rehash(stored_hash) is False
+    assert needs_rehash(hashed) is False
 
 
-def test_verify_and_update():
-    stored_hash = hash_password("TestPassword@123")
+def test_verify_and_update_with_correct_password():
+    password = "StrongPassword123"
+    hashed = hash_password(password)
 
-    verified, new_hash = verify_and_update(
-        "TestPassword@123", stored_hash
+    valid, updated_hash = verify_and_update(password, hashed)
+
+    assert valid is True
+    assert updated_hash is None
+
+
+def test_verify_and_update_with_wrong_password():
+    hashed = hash_password("StrongPassword123")
+
+    valid, updated_hash = verify_and_update(
+        "WrongPassword123",
+        hashed,
     )
 
-    assert verified is True
-    assert new_hash is None
-
-
-def test_wrong_password_no_rehash():
-    stored_hash = hash_password("TestPassword@123")
-
-    verified, new_hash = verify_and_update(
-        "WrongPassword", stored_hash
-    )
-
-    assert verified is False
-    assert new_hash is None
+    assert valid is False
+    assert updated_hash is None
 
 
 def test_outdated_hash_requires_rehash():
@@ -76,8 +91,7 @@ def test_outdated_hash_requires_rehash():
         memory_cost=1024,
         parallelism=1,
     )
-
-    password = "TestPassword@123"
+    password = "StrongPassword123"
     old_hash = old_hasher.hash(password)
 
     assert needs_rehash(old_hash) is True
@@ -95,3 +109,75 @@ def test_malformed_hash_rehash_handling():
     with pytest.raises(ValueError, match="Invalid stored password hash"):
         needs_rehash("invalid-hash")
 
+
+def test_access_token_can_be_created_and_decoded():
+    token = create_access_token(user_id=1)
+
+    payload = decode_access_token(token)
+
+    assert payload["sub"] == "1"
+    assert "exp" in payload
+
+
+def test_expired_token_is_rejected():
+    expired_payload = {
+        "sub": "1",
+        "exp": datetime.now(timezone.utc) - timedelta(minutes=1),
+    }
+
+    token = jwt.encode(
+        expired_payload,
+        get_secret_key(),
+        algorithm=settings.jwt_algorithm,
+    )
+
+    with pytest.raises(jwt.ExpiredSignatureError):
+        decode_access_token(token)
+
+
+@pytest.mark.parametrize(
+    "secret",
+    [
+        None,
+        SecretStr("REPLACE_WITH_LOCAL_RANDOM_SECRET"),
+        SecretStr("too-short"),
+    ],
+)
+def test_invalid_signing_key_is_rejected(monkeypatch, secret):
+    monkeypatch.setattr(settings, "secret_key", secret)
+
+    with pytest.raises(TokenConfigurationError):
+        get_secret_key()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"sub": "1"},
+        {"exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
+    ],
+)
+def test_token_missing_required_claim_is_rejected(payload):
+    token = jwt.encode(
+        payload,
+        get_secret_key(),
+        algorithm=settings.jwt_algorithm,
+    )
+
+    with pytest.raises(jwt.MissingRequiredClaimError):
+        decode_access_token(token)
+
+
+@pytest.mark.parametrize(
+    "overrides, field",
+    [
+        ({"jwt_algorithm": "unsupported"}, "jwt_algorithm"),
+        ({"access_token_expire_minutes": 0}, "access_token_expire_minutes"),
+        ({"access_token_expire_minutes": -1}, "access_token_expire_minutes"),
+    ],
+)
+def test_invalid_jwt_configuration_is_rejected(overrides, field):
+    with pytest.raises(ValidationError) as error:
+        Settings(_env_file=None, **overrides)
+
+    assert error.value.errors()[0]["loc"] == (field,)
