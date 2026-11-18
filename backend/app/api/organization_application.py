@@ -33,6 +33,7 @@ from app.services.organization_application import (
     ApplicationAlreadyExistsError,
     RegistrationNumberAlreadyExistsError,
     create_application_draft,
+    get_application_details,
     get_own_application,
 )
 
@@ -65,12 +66,23 @@ def application_summary(db: Session, organization: Organization) -> ApplicationS
             )
             .limit(1)
         )
+    draft_details = None
+    if status == "draft":
+        draft_details = get_application_details(organization)
+
+        if organization.type.value == "ngo":
+            draft_details["organization_type"] = "ngo"
+        else:
+            draft_details["organization_type"] = "business"
+            draft_details["business_subtype"] = organization.type.value
+
     return ApplicationSummary(
         application_id=organization.organization_id,
         organization_id=organization.organization_id,
         name=organization.name,
         status=status,
         review_note=review_note,
+        draft_details=draft_details,
     )
 
 

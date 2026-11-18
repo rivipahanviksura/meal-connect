@@ -12,9 +12,11 @@ from app.db.models.organization import (
 )
 from app.db.models.user import AccountStatus, User, UserRole
 from app.schemas.organization_application import (
+    ApplicationDetails,
     ApplicationDraft,
     ApplicationRequest,
     BusinessApplication,
+    NgoOperationalDetails,
 )
 
 
@@ -95,6 +97,28 @@ def create_application_draft(
         db.rollback()
         raise
     return ApplicationDraft(application_id=organization_id, organization_id=organization_id)
+
+
+def get_application_details(organization: Organization) -> dict:
+    details = {
+        field: getattr(organization, field)
+        for field in ApplicationDetails.model_fields
+    }
+    if organization.type == OrganizationType.ngo:
+        operations = organization.operational_details
+        details.update(
+            registration_authority=organization.registration_authority,
+            registration_date=(
+                organization.registration_date.isoformat() if organization.registration_date else None
+            ),
+            operational_details={
+                field: operations.get(field)
+                for field in NgoOperationalDetails.model_fields
+            } if isinstance(operations, dict) else None,
+        )
+    else:
+        details["pickup_location"] = organization.pickup_location
+    return details
 
 
 def get_own_application(db: Session, authenticated_user_id: int) -> Organization | None:
