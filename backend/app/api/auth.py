@@ -52,6 +52,9 @@ def register_user(
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     try:
         user = authenticate_user(db, payload.email, payload.password)
+
+        if getattr(user, "account_status", None) == AccountStatus.suspended:
+            return error_response(403, "ACCOUNT_INACTIVE", "This account has been suspended.")
         access_token = create_access_token(user.user_id)
     except InvalidCredentialsError:
         return error_response(401, "INVALID_CREDENTIALS", "Invalid email or password.")
@@ -67,4 +70,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             expires_in=settings.access_token_expire_minutes * 60,
             user=LoginUserSummary.model_validate(user),
         )
+
+
+
     )
