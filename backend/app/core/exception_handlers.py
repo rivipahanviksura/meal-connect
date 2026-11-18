@@ -1,7 +1,9 @@
-
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+
+from app.core.timezone import TimezoneValidationError
+from app.services.donation_availability import DonationExpiredError
 
 
 class APIException(Exception):
@@ -65,6 +67,44 @@ async def validation_exception_handler(
     )
 
 
+async def timezone_validation_exception_handler(
+    request: Request,
+    exc: TimezoneValidationError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Please provide timezone-aware ISO 8601 timestamps.",
+                "fields": [
+                    {
+                        "field": exc.field_name,
+                        "message": str(exc),
+                        "code": "timezone_required",
+                    }
+                ],
+            }
+        },
+    )
+
+
+async def donation_expired_exception_handler(
+    request: Request,
+    exc: DonationExpiredError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={
+            "error": {
+                "code": exc.code,
+                "message": str(exc),
+                "fields": [],
+            }
+        },
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(
         APIException,
@@ -73,4 +113,12 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(
         RequestValidationError,
         validation_exception_handler,
+    )
+    app.add_exception_handler(
+        TimezoneValidationError,
+        timezone_validation_exception_handler,
+    )
+    app.add_exception_handler(
+        DonationExpiredError,
+        donation_expired_exception_handler,
     )

@@ -10,4 +10,5 @@ psycopg[binary]
 email-validator
 argon2-cffi==25.1.0
 PyJWT==2.15.1
+tzdata
 python-multipart==0.0.33
