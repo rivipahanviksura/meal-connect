@@ -67,6 +67,32 @@ class DonationCreate(BaseModel):
 
         return self
 
+class DonationUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    title: str | None = None
+    category: str | None = None
+    description: str | None = None
+    total_quantity: Decimal | None = None
+    quantity_unit: str | None = None
+    allergen_info: str | None = None
+    storage_instructions: str | None = None
+    prepared_at: AwareDatetime | None = None
+    available_from: AwareDatetime | None = None
+    pickup_deadline: AwareDatetime | None = None
+    pickup_address: str | None = None
+    pickup_city: str | None = None
+
+    @field_validator("prepared_at", "available_from", "pickup_deadline", mode="before")
+    @classmethod
+    def parse_iso_datetime(cls, value: object) -> datetime | None:
+        return DonationCreate.parse_iso_datetime(value)
+
+
+class DonationCancellation(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    reason: str | None = Field(default=None, max_length=1000)
 
 class DonationResponseData(BaseModel):
     model_config = ConfigDict(from_attributes=True)
