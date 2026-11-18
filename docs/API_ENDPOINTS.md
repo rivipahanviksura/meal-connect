@@ -153,7 +153,7 @@ The **user-facing registration is one wizard** (choose Restaurant or NGO → acc
 
 | Method | Path | Access | Payload | Target behavior |
 |---|---|---|---|---|
-| `POST` | `/organization-applications` | Authenticated, non-admin applicant | JSON: `organization_type` (`business` or `ngo`), business subtype (`restaurant` or `bakery`) if needed; category must match the authenticated account type; `name`, `registration_number?`, `contact_email`, `contact_phone?`, `address_line`, `city`, `district?`, `representative_name` | `201` `{data:{application_id,organization_id,status:"draft"}}` where `application_id = organization_id`; create draft organization + owning membership, **no privileged organization access** until approved |
+| `POST` | `/organization-applications` | Authenticated, non-admin applicant | JSON: `organization_type` (`business` or `ngo`), business subtype (`restaurant` or `bakery`) if needed; category must match the authenticated account type; `name`, `registration_number?`, `contact_email`, `contact_phone?`, `address_line`, `city`, `district?`, `representative_name`, `representative_designation?`; Business: `pickup_location?`; NGO: `registration_authority?`, `registration_date?` (YYYY-MM-DD, no future dates), `operational_details?` with `operating_area?`, `distribution_area?`, and `operational_capability?` | `201` `{data:{application_id,organization_id,status:"draft"}}` where `application_id = organization_id`; create draft organization + owning membership, **no privileged organization access** until approved |
 | `GET` | `/organization-applications/me` | Applicant | — | `200` own application only for MVP (list response shape retained for API compatibility); safe status/details; pagination |
 | `GET` | `/organization-applications/{application_id}` | Applicant or admin | — | `200` own application including document metadata and current review outcome; not public |
 | `POST` | `/organization-applications/{application_id}/documents` | Owning applicant with draft/rejected application | `multipart/form-data` with `file` and `document_type` | `201` document metadata; private binary storage and server-generated file identifier |
@@ -177,6 +177,8 @@ The **user-facing registration is one wizard** (choose Restaurant or NGO → acc
   "representative_name": "Demo User"
 }
 ```
+
+The registration wizard collects the applicable business or NGO fields above. These fields are persisted on the organization record, with the three NGO operating fields stored under `operational_details`. They remain optional at the API boundary for existing clients and drafts, and the owner’s saved draft summary returns the values that were provided.
 
 **Upload:** the Angular UI uses a genuine multipart upload (`file`, `document_type`); **do not** pass base64 documents inside JSON. Proposed MVP accepted document types: `registration_certificate`, `representative_authorization`, `supporting_document`. Required minimum: one relevant organization-registration evidence file and contact/representative details. For businesses, use business registration evidence; for NGOs, NGO/charity registration or other accepted registration proof. This is **platform policy**, not a declaration of statutory compliance. Admin must make an evidence-based judgment; approving an upload is not a guarantee of food safety.
 
@@ -243,6 +245,8 @@ GET /api/v1/donations?city=Colombo&category=prepared_meal&min_quantity=5&sort=pi
 ```
 
 Permitted sort keys: `pickup_deadline`, `-pickup_deadline`, `created_at`, `-created_at`. `min_quantity` refers to **remaining** stock. Invalid filters, sort keys or pagination should yield `422`.
+
+The verified NGO browse endpoint returns listings from approved restaurants and bakeries. Its results and pagination totals exclude listings from suspended publishers. `available_before` is an inclusive upper bound on `available_from` and applies within the current availability window.
 
 ### 4.5 NGO requests and business approval
 
