@@ -4,6 +4,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -17,8 +18,11 @@ from app.db.models.organization import (
     VerificationStatus,
 )
 from app.db.models.donation import Donation, DonationStatus
-from app.schemas.donation import DonationUpdate
-from app.services.donation import edit_donation, cancel_donation
+from app.schemas.donation_edit_cancel import DonationUpdate
+from app.services.donation_edit_cancel_service import (
+    edit_donation,
+    cancel_donation,
+)
 
 
 def test_real_database_donation_ownership():
@@ -102,14 +106,23 @@ def test_real_database_donation_ownership():
                 db.add(donation)
                 db.flush()
 
+                # Store generated IDs before session commit/rollback.
                 donation_id = donation.donation_id
+                owner_organization_id = restaurant_a.organization_id
+                other_organization_id = restaurant_b.organization_id
+                actor_user_id = user.user_id
 
-                # Test 1: Restaurant B cannot edit it.
+                # Preserve setup data across service-level rollbacks.
+                # This releases the Session savepoint, not the outer
+                # transaction managed by the connection.
+                db.commit()
+
+                # Test 1: Restaurant B cannot edit the donation.
                 with pytest.raises(APIException) as error:
                     edit_donation(
                         db=db,
                         donation_id=donation_id,
-                        organization_id=restaurant_b.organization_id,
+                        organization_id=other_organization_id,
                         data=DonationUpdate(
                             title="Unauthorized Edit"
                         ),
@@ -117,12 +130,13 @@ def test_real_database_donation_ownership():
 
                 assert error.value.status_code == 404
 
-                # Test 2: Restaurant B cannot cancel it.
+                # Test 2: Restaurant B cannot cancel the donation.
                 with pytest.raises(APIException) as error:
                     cancel_donation(
                         db=db,
                         donation_id=donation_id,
-                        organization_id=restaurant_b.organization_id,
+                        organization_id=other_organization_id,
+                        changed_by_user_id=actor_user_id,
                     )
 
                 assert error.value.status_code == 404
@@ -131,7 +145,7 @@ def test_real_database_donation_ownership():
                 updated = edit_donation(
                     db=db,
                     donation_id=donation_id,
-                    organization_id=restaurant_a.organization_id,
+                    organization_id=owner_organization_id,
                     data=DonationUpdate(
                         title="Updated Rice Packets"
                     ),
@@ -139,11 +153,12 @@ def test_real_database_donation_ownership():
 
                 assert updated.title == "Updated Rice Packets"
 
-                # Test 4: Restaurant A can cancel it.
+                # Test 4: Restaurant A can cancel its donation.
                 cancelled = cancel_donation(
                     db=db,
                     donation_id=donation_id,
-                    organization_id=restaurant_a.organization_id,
+                    organization_id=owner_organization_id,
+                    changed_by_user_id=actor_user_id,
                 )
 
                 assert cancelled.status == DonationStatus.cancelled
@@ -158,15 +173,13 @@ def test_real_database_donation_ownership():
         engine.dispose()
 
 
-from sqlalchemy import text
-
-
 def test_postgresql_row_lock():
     assert settings.database_url is not None
 
     db_url = make_url(
         settings.database_url.get_secret_value()
     )
+
     assert db_url.database == "meal_connect_test"
 
     engine = get_engine()

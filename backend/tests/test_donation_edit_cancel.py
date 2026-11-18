@@ -1,3 +1,8 @@
+"""Donation edit and cancel tests for Meal Connect.
+
+Run from backend: py -m pytest -q tests/test_donation_edit_cancel.py
+"""
+
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -20,8 +25,9 @@ from app.db.models.organization import (
     MemberStatus,
     MembershipRole,
 )
-from app.schemas.donation import DonationUpdate
-from app.services.donation import edit_donation, cancel_donation
+from app.schemas.donation_edit_cancel import DonationUpdate
+from app.services.donation_edit_cancel_service import edit_donation, cancel_donation
+
 
 
 @pytest.fixture
@@ -154,6 +160,7 @@ def test_cancel_donation_with_allocation_blocked():
             db=db,
             donation_id=1,
             organization_id=10,
+            changed_by_user_id=30,
         )
 
     assert error.value.status_code == 409
@@ -191,6 +198,7 @@ def test_cancel_donation_success():
         db=db,
         donation_id=1,
         organization_id=10,
+        changed_by_user_id=30,
     )
 
     assert result.status == DonationStatus.cancelled
@@ -242,6 +250,7 @@ def test_cancel_donation_with_active_pickup_blocked():
             db=db,
             donation_id=1,
             organization_id=10,
+            changed_by_user_id=30,
         )
 
     assert error.value.status_code == 409
@@ -353,7 +362,7 @@ def test_approved_business_can_edit_donation(organization_type):
 
         assert response.status_code == 200, response.text
 
-        response_data = response.json()
+        response_data = response.json()["data"]
 
         assert response_data["donation_id"] == 1
         assert response_data["organization_id"] == 10
@@ -425,8 +434,8 @@ def test_approved_business_can_cancel_donation(organization_type):
             )
 
         assert response.status_code == 200, response.text
-        assert response.json()["donation_id"] == 1
-        assert response.json()["status"] == "cancelled"
+        assert response.json()["data"]["donation_id"] == 1
+        assert response.json()["data"]["status"] == "cancelled"
 
         db.commit.assert_called_once()
 
