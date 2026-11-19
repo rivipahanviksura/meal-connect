@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.timezone import to_utc
 from app.db.models.donation import Donation, DonationStatus
 from app.db.models.organization import Organization, OrganizationType, VerificationStatus
 from app.schemas.donation import (
@@ -23,6 +24,9 @@ def browse_available_donations(
 
     if current_time.utcoffset() is None:
         raise ValueError("now must include a timezone")
+
+    # Keep SQL comparisons consistent for equivalent timezone-aware instants.
+    current_time = to_utc(current_time, field_name="now")
 
     remaining_quantity = (
         Donation.total_quantity - Donation.allocated_quantity
@@ -64,7 +68,19 @@ def browse_available_donations(
 
     if filters.available_before is not None:
         conditions.append(
-            Donation.available_from <= filters.available_before
+            Donation.available_from <= to_utc(
+                filters.available_before,
+                field_name="available_before",
+            )
+        )
+
+    if filters.pickup_deadline_before is not None:
+        conditions.append(
+            Donation.pickup_deadline
+            <= to_utc(
+                filters.pickup_deadline_before,
+                field_name="pickup_deadline_before",
+            )
         )
 
     total_items = db.scalar(
