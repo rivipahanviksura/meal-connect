@@ -903,3 +903,152 @@ def test_real_postgres_approval_blocks_type_mismatch(db):
 
     assert organization is not None
     assert organization.verification_status == VerificationStatus.pending
+
+def prepare_reviewed_category_application(db, organization_type):
+    """Create and review registration evidence for an organization category."""
+    application_id, admin_id = create_test_application(db)
+
+    organization = db.get(Organization, application_id)
+    assert organization is not None
+    organization.type = organization_type
+
+    submission = db.scalar(
+        select(OrganizationApplicationSubmission).where(
+            OrganizationApplicationSubmission.organization_id == application_id
+        )
+    )
+    assert submission is not None
+
+    owner = db.get(User, submission.submitted_by_user_id)
+    assert owner is not None
+    owner.role = (
+        UserRole.ngo_staff
+        if organization_type == OrganizationType.ngo
+        else UserRole.business_staff
+    )
+
+    if organization_type == OrganizationType.ngo:
+        organization.registration_authority = "NGO Registration Authority"
+        organization.operational_details = {
+            "operational_capability": "Food distribution to local communities"
+        }
+
+    db.commit()
+
+    document_id = create_pending_review_document(db, application_id)
+
+    snapshot = dict(submission.snapshot)
+    snapshot["organization_type"] = organization_type.value
+    submission.snapshot = snapshot
+    db.commit()
+
+    review_application_document(
+        db=db,
+        application_id=application_id,
+        document_id=document_id,
+        admin_id=admin_id,
+        decision="approved",
+        review_note="Registration evidence was reviewed and accepted.",
+    )
+
+    return application_id, admin_id
+
+
+@pytest.mark.parametrize(
+    "organization_type",
+    [OrganizationType.bakery, OrganizationType.ngo],
+    ids=["bakery", "ngo"],
+)
+def test_real_postgres_category_approval_with_reviewed_evidence(
+    db, organization_type
+):
+    application_id, admin_id = prepare_reviewed_category_application(
+        db, organization_type
+    )
+
+    result = approve_application(
+        db=db,
+        application_id=application_id,
+        admin_id=admin_id,
+        comment="Organization registration evidence was fully reviewed.",
+    )
+
+    organization = db.get(Organization, application_id)
+    assert organization is not None
+    assert organization.type == organization_type
+    assert organization.verification_status == VerificationStatus.approved
+    assert result.data.status == "verified"
+
+
+def test_real_postgres_ngo_requires_registration_authority(db):
+    application_id, admin_id = prepare_reviewed_category_application(
+        db, OrganizationType.ngo
+    )
+    organization = db.get(Organization, application_id)
+    assert organization is not None
+    organization.registration_authority = ""
+    db.commit()
+
+    with pytest.raises(APIException) as error:
+        approve_application(
+            db=db,
+            application_id=application_id,
+            admin_id=admin_id,
+            comment="NGO application evidence has been reviewed.",
+        )
+
+    assert error.value.status_code == 422
+    assert error.value.code == "VALIDATION_ERROR"
+    assert organization.verification_status == VerificationStatus.pending
+
+
+def test_real_postgres_ngo_requires_operational_capability(db):
+    application_id, admin_id = prepare_reviewed_category_application(
+        db, OrganizationType.ngo
+    )
+    organization = db.get(Organization, application_id)
+    assert organization is not None
+    organization.operational_details = {}
+    db.commit()
+
+    with pytest.raises(APIException) as error:
+        approve_application(
+            db=db,
+            application_id=application_id,
+            admin_id=admin_id,
+            comment="NGO application evidence has been reviewed.",
+        )
+
+    assert error.value.status_code == 422
+    assert error.value.code == "VALIDATION_ERROR"
+    assert organization.verification_status == VerificationStatus.pending
+
+
+def test_real_postgres_ngo_rejects_business_staff_owner(db):
+    application_id, admin_id = prepare_reviewed_category_application(
+        db, OrganizationType.ngo
+    )
+    submission = db.scalar(
+        select(OrganizationApplicationSubmission).where(
+            OrganizationApplicationSubmission.organization_id == application_id
+        )
+    )
+    assert submission is not None
+    owner = db.get(User, submission.submitted_by_user_id)
+    assert owner is not None
+    owner.role = UserRole.business_staff
+    db.commit()
+
+    with pytest.raises(APIException) as error:
+        approve_application(
+            db=db,
+            application_id=application_id,
+            admin_id=admin_id,
+            comment="NGO application evidence has been reviewed.",
+        )
+
+    assert error.value.status_code == 409
+    assert error.value.code == "ROLE_MISMATCH"
+    organization = db.get(Organization, application_id)
+    assert organization is not None
+    assert organization.verification_status == VerificationStatus.pending
