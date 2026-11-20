@@ -3,38 +3,40 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.schemas.common import DatabaseText
+
 
 class ApplicationDetails(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    name: str = Field(min_length=1, max_length=180)
-    registration_number: str | None = Field(default=None, min_length=1, max_length=100)
+    name: DatabaseText = Field(min_length=1, max_length=180)
+    registration_number: DatabaseText | None = Field(default=None, min_length=1, max_length=100)
     contact_email: Annotated[EmailStr, Field(max_length=255)]
-    contact_phone: str | None = Field(default=None, min_length=1, max_length=25)
-    address_line: str = Field(min_length=1, max_length=255)
-    city: str = Field(min_length=1, max_length=120)
-    district: str | None = Field(default=None, min_length=1, max_length=120)
-    representative_name: str = Field(min_length=1, max_length=180)
-    representative_designation: str | None = Field(default=None, min_length=1, max_length=100)
+    contact_phone: DatabaseText | None = Field(default=None, min_length=1, max_length=25)
+    address_line: DatabaseText = Field(min_length=1, max_length=255)
+    city: DatabaseText = Field(min_length=1, max_length=120)
+    district: DatabaseText | None = Field(default=None, min_length=1, max_length=120)
+    representative_name: DatabaseText = Field(min_length=1, max_length=180)
+    representative_designation: DatabaseText | None = Field(default=None, min_length=1, max_length=100)
 
 
 class BusinessApplication(ApplicationDetails):
     organization_type: Literal["business"]
     business_subtype: Literal["restaurant", "bakery"]
-    pickup_location: str | None = Field(default=None, min_length=1, max_length=255)
+    pickup_location: DatabaseText | None = Field(default=None, min_length=1, max_length=255)
 
 
 class NgoOperationalDetails(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    operating_area: str | None = Field(default=None, min_length=1, max_length=255)
-    distribution_area: str | None = Field(default=None, min_length=1, max_length=255)
-    operational_capability: str | None = Field(default=None, min_length=1, max_length=255)
+    operating_area: DatabaseText | None = Field(default=None, min_length=1, max_length=255)
+    distribution_area: DatabaseText | None = Field(default=None, min_length=1, max_length=255)
+    operational_capability: DatabaseText | None = Field(default=None, min_length=1, max_length=255)
 
 
 class NgoApplication(ApplicationDetails):
     organization_type: Literal["ngo"]
-    registration_authority: str | None = Field(default=None, min_length=1, max_length=180)
+    registration_authority: DatabaseText | None = Field(default=None, min_length=1, max_length=180)
     registration_date: date | None = None
     operational_details: NgoOperationalDetails | None = None
 
@@ -49,6 +51,10 @@ class NgoApplication(ApplicationDetails):
 ApplicationRequest = Annotated[
     BusinessApplication | NgoApplication, Field(discriminator="organization_type")
 ]
+
+
+class ApplicationSubmissionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 
 class ApplicationDraft(BaseModel):

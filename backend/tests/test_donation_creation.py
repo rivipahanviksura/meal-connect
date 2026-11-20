@@ -263,3 +263,73 @@ def test_pending_organization_cannot_create_donation(
 
     assert response.status_code == 403
     mock_create.assert_not_called()
+
+
+@pytest.mark.parametrize(("field", "value"), [
+    ("organization_id", True),
+    ("organization_id", 2**63),
+    ("description", "Invalid\x00text"),
+    ("title", "   "),
+    ("available_from", "0001-01-01T00:00:00+05:30"),
+    ("status", "collected"),
+    ("total_quantity", "1.001"),
+])
+def test_invalid_creation_fields_are_rejected_before_persistence(client, field, value):
+    db = MagicMock()
+    app.dependency_overrides[get_active_user] = create_user
+    app.dependency_overrides[get_current_organization] = create_organization
+    app.dependency_overrides[get_db] = lambda: db
+
+    response = client.post(
+        "/api/v1/donations", json={**valid_donation_payload(), field: value}
+    )
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "VALIDATION_ERROR"
+    assert field in {entry["field"] for entry in error["fields"]}
+    assert db.mock_calls == []
+
+
+@pytest.mark.parametrize(("method", "suffix", "payload", "field"), [
+    ("PATCH", "/100", {"title": "Invalid\x00title"}, "title"),
+    ("PATCH", "/100", {"pickup_deadline": "9999-12-31T23:59:59-05:00"}, "pickup_deadline"),
+    ("PATCH", "/100", {"status": "available"}, "status"),
+    ("POST", "/100/cancel", {"reason": "Invalid\x00reason"}, "reason"),
+])
+def test_invalid_lifecycle_fields_are_rejected(client, method, suffix, payload, field):
+    db = MagicMock()
+    app.dependency_overrides[get_active_user] = create_user
+    app.dependency_overrides[get_current_organization] = create_organization
+    app.dependency_overrides[get_db] = lambda: db
+
+    response = client.request(method, f"/api/v1/donations{suffix}", json=payload)
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "VALIDATION_ERROR"
+    assert field in {entry["field"] for entry in error["fields"]}
+    assert db.mock_calls == []
+
+
+@pytest.mark.parametrize(("changes", "field"), [
+    ({"total_quantity": "0"}, "total_quantity"),
+    ({"title": None}, "title"),
+    ({"pickup_deadline": "2026-11-15T03:30:00Z"}, "request"),
+])
+def test_edit_validates_against_the_existing_donation(client, changes, field):
+    db = MagicMock()
+    donation = create_donation()
+    db.scalar.return_value = donation
+    app.dependency_overrides[get_active_user] = create_user
+    app.dependency_overrides[get_current_organization] = create_organization
+    app.dependency_overrides[get_db] = lambda: db
+
+    response = client.patch("/api/v1/donations/100", json=changes)
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "VALIDATION_ERROR"
+    assert field in {entry["field"] for entry in error["fields"]}
+    db.rollback.assert_called_once()
+    db.commit.assert_not_called()
