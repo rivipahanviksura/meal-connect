@@ -158,6 +158,9 @@ class DonationBrowseQuery(BaseModel):
 
     available_before: AwareDatetime | None = None
 
+    # Inclusive upper bound on the collection deadline (not availability start).
+    pickup_deadline_before: AwareDatetime | None = None
+
     sort: Literal[
         "pickup_deadline",
         "-pickup_deadline",
