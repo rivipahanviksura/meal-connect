@@ -10,6 +10,21 @@ from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from app.api.dependencies import get_current_user
+from app.db.models.user import UserRole, AccountStatus
+
+
+
+
+
+from app.db.models.organization import (
+    OrganizationType,
+    VerificationStatus,
+    MembershipRole,
+    MemberStatus,
+)
+
+
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -274,17 +289,44 @@ def test_anonymous_edit_and_cancel_rejected():
     assert cancel.status_code == 401
 
 
+
+
 def test_edit_api_response_keeps_data_wrapper():
-    fake_org = SimpleNamespace(organization_id=10)
+    fake_user = SimpleNamespace(
+        user_id=5,
+        role=UserRole.business_staff,
+        account_status=AccountStatus.active,
+    )
+
+    fake_org = SimpleNamespace(
+        organization_id=10,
+        type=OrganizationType.restaurant,
+        verification_status=VerificationStatus.approved,
+    )
+
+    fake_membership = SimpleNamespace(
+        membership_role=MembershipRole.staff,
+        member_status=MemberStatus.active,
+    )
 
     db = MagicMock()
+
+    # Mock active organization membership.
+    db.execute.return_value.all.return_value = [
+        (fake_membership, fake_org)
+    ]
+
+    # Mock donation ownership query.
     db.scalar.return_value = donation()
 
-    app.dependency_overrides[
-        get_business_organization
-    ] = lambda: fake_org
+    def fake_get_db():
+        yield db
 
-    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = (
+        lambda: fake_user
+    )
+
+    app.dependency_overrides[get_db] = fake_get_db
 
     try:
         with TestClient(app) as client:
@@ -294,15 +336,20 @@ def test_edit_api_response_keeps_data_wrapper():
             )
 
         assert response.status_code == 200, response.text
-        assert response.json()["data"]["title"] == "Updated"
+
+        response_data = response.json()["data"]
+
+        assert response_data["donation_id"] == 7
+        assert response_data["title"] == "Updated"
+        assert response_data["organization_id"] == 10
+
+        db.commit.assert_called_once()
 
     finally:
         app.dependency_overrides.pop(
-            get_business_organization,
-            None,
+            get_current_user, None
         )
 
         app.dependency_overrides.pop(
-            get_db,
-            None,
+            get_db, None
         )
