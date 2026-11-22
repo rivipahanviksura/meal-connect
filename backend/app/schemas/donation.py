@@ -1,98 +1,101 @@
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import (
+    AfterValidator,
     AwareDatetime,
+    BeforeValidator,
     BaseModel,
     ConfigDict,
     Field,
     computed_field,
     field_serializer,
-    field_validator,
     model_validator,
 )
 
+from app.core.timezone import to_utc
 from app.db.models.donation import DonationStatus
+from app.schemas.common import DatabaseText
+
+
+def parse_donation_timestamp(value: object) -> datetime | None:
+    if value is None or isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    raise ValueError("Use an ISO 8601 datetime with a timezone offset.")
+
+
+def normalize_donation_timestamp(value: datetime) -> datetime:
+    try:
+        return to_utc(value)
+    except OverflowError:
+        raise ValueError("Timestamp is outside the supported UTC range.") from None
+
+
+DonationTimestamp = Annotated[
+    AwareDatetime,
+    BeforeValidator(parse_donation_timestamp),
+    AfterValidator(normalize_donation_timestamp),
+]
 
 
 class DonationCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    organization_id: int | None = Field(default=None, gt=0)
+    organization_id: int | None = Field(default=None, strict=True, gt=0, le=2**63 - 1)
     status: Literal["draft", "available"] = "draft"
-    title: str = Field(min_length=1, max_length=180)
-    category: str = Field(min_length=1, max_length=100)
-    description: str | None = None
+    title: DatabaseText = Field(min_length=1, max_length=180)
+    category: DatabaseText = Field(min_length=1, max_length=100)
+    description: DatabaseText | None = None
 
     total_quantity: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
-    quantity_unit: str = Field(min_length=1, max_length=30)
+    quantity_unit: DatabaseText = Field(min_length=1, max_length=30)
 
-    allergen_info: str | None = None
-    storage_instructions: str | None = None
+    allergen_info: DatabaseText | None = None
+    storage_instructions: DatabaseText | None = None
 
-    prepared_at: AwareDatetime | None = None
-    available_from: AwareDatetime
-    pickup_deadline: AwareDatetime
+    prepared_at: DonationTimestamp | None = None
+    available_from: DonationTimestamp
+    pickup_deadline: DonationTimestamp
 
-    pickup_address: str = Field(min_length=1, max_length=255)
-    pickup_city: str = Field(min_length=1, max_length=120)
-
-    @field_validator("prepared_at", "available_from", "pickup_deadline", mode="before")
-    @classmethod
-    def parse_iso_datetime(cls, value: object) -> datetime | None:
-        if value is None or isinstance(value, datetime):
-            return value
-        if isinstance(value, str):
-            return datetime.fromisoformat(value)
-        raise ValueError("Use an ISO 8601 datetime with a timezone offset.")
+    pickup_address: DatabaseText = Field(min_length=1, max_length=255)
+    pickup_city: DatabaseText = Field(min_length=1, max_length=120)
 
     @model_validator(mode="after")
     def validate_timestamps(self):
-        available_from_utc = self.available_from.astimezone(timezone.utc)
-        pickup_deadline_utc = self.pickup_deadline.astimezone(timezone.utc)
+        if self.pickup_deadline <= self.available_from:
+            raise ValueError("Pickup deadline must be after available from.")
 
-        if pickup_deadline_utc <= available_from_utc:
-            raise ValueError(
-                "Pickup deadline must be after available from."
-            )
-
-        if self.prepared_at is not None:
-            prepared_at_utc = self.prepared_at.astimezone(timezone.utc)
-
-            if prepared_at_utc > pickup_deadline_utc:
-                raise ValueError(
-                    "Prepared time cannot be after pickup deadline."
-                )
+        if self.prepared_at is not None and self.prepared_at > self.pickup_deadline:
+            raise ValueError("Prepared time cannot be after pickup deadline.")
 
         return self
+
 
 class DonationUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    title: str | None = None
-    category: str | None = None
-    description: str | None = None
+    title: DatabaseText | None = None
+    category: DatabaseText | None = None
+    description: DatabaseText | None = None
     total_quantity: Decimal | None = None
-    quantity_unit: str | None = None
-    allergen_info: str | None = None
-    storage_instructions: str | None = None
-    prepared_at: AwareDatetime | None = None
-    available_from: AwareDatetime | None = None
-    pickup_deadline: AwareDatetime | None = None
-    pickup_address: str | None = None
-    pickup_city: str | None = None
-
-    @field_validator("prepared_at", "available_from", "pickup_deadline", mode="before")
-    @classmethod
-    def parse_iso_datetime(cls, value: object) -> datetime | None:
-        return DonationCreate.parse_iso_datetime(value)
+    quantity_unit: DatabaseText | None = None
+    allergen_info: DatabaseText | None = None
+    storage_instructions: DatabaseText | None = None
+    prepared_at: DonationTimestamp | None = None
+    available_from: DonationTimestamp | None = None
+    pickup_deadline: DonationTimestamp | None = None
+    pickup_address: DatabaseText | None = None
+    pickup_city: DatabaseText | None = None
 
 
 class DonationCancellation(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    reason: str | None = Field(default=None, max_length=1000)
+    reason: DatabaseText | None = Field(default=None, max_length=1000)
+
 
 class DonationResponseData(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -135,13 +138,13 @@ POSTGRES_MAX_OFFSET = (2**63) - 1
 class DonationBrowseQuery(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    city: str | None = Field(
+    city: DatabaseText | None = Field(
         default=None,
         min_length=1,
         max_length=120,
     )
 
-    category: str | None = Field(
+    category: DatabaseText | None = Field(
         default=None,
         min_length=1,
         max_length=100,
@@ -156,7 +159,7 @@ class DonationBrowseQuery(BaseModel):
         decimal_places=2,
     )
 
-    available_before: AwareDatetime | None = None
+    available_before: DonationTimestamp | None = None
 
     sort: Literal[
         "pickup_deadline",
