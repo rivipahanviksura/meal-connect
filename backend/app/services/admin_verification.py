@@ -247,6 +247,72 @@ def check_registration_evidence(
             ],
         )
 
+    # MEAL-13: Review additional business certificates included in the
+    # submitted evidence snapshot. Missing optional certificates are not
+    # required here; applicability must be decided by the business rules.
+    if organization.type in {OrganizationType.restaurant, OrganizationType.bakery}:
+        for document_type in ("food_premises_certificate", "trade_licence"):
+            document_id = document_ids.get(document_type)
+            if document_id is None:
+                continue
+
+            if type(document_id) is not int or document_id <= 0:
+                raise APIException(
+                    status_code=422,
+                    code="VALIDATION_ERROR",
+                    message=f"Invalid {document_type} reference.",
+                )
+
+            additional_document = db.scalar(
+                select(OrganizationDocument)
+                .join(
+                    OrganizationDocumentContent,
+                    OrganizationDocument.document_id
+                    == OrganizationDocumentContent.document_id,
+                )
+                .where(
+                    OrganizationDocument.document_id == document_id,
+                    OrganizationDocument.organization_id == organization.organization_id,
+                    OrganizationDocument.document_type == document_type,
+                    OrganizationDocument.file_size_bytes > 0,
+                )
+            )
+
+            if additional_document is None:
+                raise APIException(
+                    status_code=422,
+                    code="VALIDATION_ERROR",
+                    message=f"Valid {document_type} evidence was not found.",
+                )
+
+            if additional_document.review_status != "approved":
+                raise APIException(
+                    status_code=422,
+                    code="DOCUMENT_NOT_APPROVED",
+                    message=f"{document_type} must be reviewed and approved.",
+                )
+
+            additional_approval_history = db.scalar(
+                select(StatusHistory.status_history_id)
+                .where(
+                    StatusHistory.entity_type == "organization_document",
+                    StatusHistory.entity_id == additional_document.document_id,
+                    StatusHistory.old_status == "pending",
+                    StatusHistory.new_status == "approved",
+                )
+                .limit(1)
+            )
+
+            if (
+                additional_document.reviewed_at is None
+                or additional_approval_history is None
+            ):
+                raise APIException(
+                    status_code=422,
+                    code="DOCUMENT_REVIEW_AUDIT_MISSING",
+                    message=f"Admin review audit missing for {document_type}.",
+                )
+
     if organization.type not in {
         OrganizationType.restaurant,
         OrganizationType.bakery,

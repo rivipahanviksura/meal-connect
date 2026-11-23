@@ -1360,3 +1360,71 @@ def test_meal13_full_verification_api_workflow(db, monkeypatch):
             app.dependency_overrides.pop(get_db, None)
         else:
             app.dependency_overrides[get_db] = original_override
+
+
+@pytest.mark.parametrize(
+    "document_type",
+    [
+        "food_premises_certificate",
+        "trade_licence",
+    ],
+)
+def test_meal13_additional_certificate_requires_admin_approval(
+    db,
+    document_type,
+):
+    application_id, admin_id = create_test_application(db)
+
+    # The existing test helper prepares approved registration evidence.
+    create_pending_review_document(db, application_id)
+
+    submission = db.scalar(
+        select(OrganizationApplicationSubmission)
+        .where(
+            OrganizationApplicationSubmission.organization_id
+            == application_id
+        )
+    )
+    assert submission is not None
+
+    applicant_id = submission.submitted_by_user_id
+
+    # The document is uploaded but has not been reviewed.
+    document = OrganizationDocument(
+        organization_id=application_id,
+        uploaded_by_user_id=applicant_id,
+        document_type=document_type,
+        storage_key=uuid4().hex,
+        original_filename=f"{document_type}.pdf",
+        content_type="application/pdf",
+        file_size_bytes=15,
+    )
+
+    db.add(document)
+    db.flush()
+
+    db.add(
+        OrganizationDocumentContent(
+            document_id=document.document_id,
+            content=b"%PDF-1.4\nTest",
+        )
+    )
+
+    snapshot = dict(submission.snapshot)
+    document_ids = dict(snapshot["document_ids"])
+    document_ids[document_type] = document.document_id
+    snapshot["document_ids"] = document_ids
+    submission.snapshot = snapshot
+
+    db.flush()
+
+    with pytest.raises(APIException) as exc_info:
+        approve_application(
+            db=db,
+            application_id=application_id,
+            admin_id=admin_id,
+            comment="All registration evidence reviewed.",
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.code == "DOCUMENT_NOT_APPROVED"
