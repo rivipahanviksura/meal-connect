@@ -7,6 +7,11 @@ from sqlalchemy.orm import Session
 
 from app.core.exception_handlers import APIException
 from app.db.session import get_engine
+from app.services.application_submission import (
+    ApplicationEvidenceError,
+    save_application_document,
+    submit_application,
+)
 
 from app.db.models.user import (
     User,
@@ -1052,3 +1057,115 @@ def test_real_postgres_ngo_rejects_business_staff_owner(db):
     organization = db.get(Organization, application_id)
     assert organization is not None
     assert organization.verification_status == VerificationStatus.pending
+
+
+# MEAL-13: Resubmission must include corrected evidence.
+def test_real_postgres_resubmit_requires_corrected_evidence(db):
+    application_id, admin_id = create_test_application(db)
+    create_pending_review_document(db, application_id)
+
+    reject_application(
+        db=db,
+        application_id=application_id,
+        admin_id=admin_id,
+        reason="Registration certificate needs correction.",
+    )
+
+    submission = db.scalar(
+        select(OrganizationApplicationSubmission)
+        .where(
+            OrganizationApplicationSubmission.organization_id
+            == application_id
+        )
+    )
+    assert submission is not None
+
+    applicant_id = submission.submitted_by_user_id
+
+    with pytest.raises(ApplicationEvidenceError):
+        submit_application(
+            db=db,
+            user_id=applicant_id,
+            application_id=application_id,
+            resubmitting=True,
+        )
+
+    organization = db.get(Organization, application_id)
+    assert organization.verification_status == VerificationStatus.rejected
+
+
+# MEAL-13: Corrected evidence allows resubmission.
+def test_real_postgres_resubmit_keeps_organization_and_history(db):
+    application_id, admin_id = create_test_application(db)
+    original_document_id = create_pending_review_document(
+        db, application_id
+    )
+
+    original_submission = db.scalar(
+        select(OrganizationApplicationSubmission)
+        .where(
+            OrganizationApplicationSubmission.organization_id
+            == application_id
+        )
+    )
+    assert original_submission is not None
+
+    applicant_id = original_submission.submitted_by_user_id
+    original_submission_id = original_submission.submission_id
+
+    reject_application(
+        db=db,
+        application_id=application_id,
+        admin_id=admin_id,
+        reason="Please provide corrected registration evidence.",
+    )
+
+    corrected_document = save_application_document(
+        db=db,
+        user_id=applicant_id,
+        application_id=application_id,
+        document_type="registration_certificate",
+        filename="corrected_registration.pdf",
+        content_type="application/pdf",
+        content=b"%PDF-1.4\nCorrected registration evidence",
+    )
+
+    assert corrected_document.document_id != original_document_id
+
+    result = submit_application(
+        db=db,
+        user_id=applicant_id,
+        application_id=application_id,
+        resubmitting=True,
+    )
+
+    assert result.application_id == application_id
+    assert result.organization_id == application_id
+    assert result.status == "pending_verification"
+
+    organization = db.get(Organization, application_id)
+    assert organization.verification_status == VerificationStatus.pending
+
+    submissions = db.scalars(
+        select(OrganizationApplicationSubmission)
+        .where(
+            OrganizationApplicationSubmission.organization_id
+            == application_id
+        )
+        .order_by(OrganizationApplicationSubmission.submission_id)
+    ).all()
+
+    assert len(submissions) == 2
+    assert submissions[0].submission_id == original_submission_id
+
+    assert (
+        submissions[1].snapshot["document_ids"]["registration_certificate"]
+        == corrected_document.document_id
+    )
+
+    organization_count = db.scalar(
+        select(func.count())
+        .select_from(Organization)
+        .where(Organization.organization_id == application_id)
+    )
+    assert organization_count == 1
