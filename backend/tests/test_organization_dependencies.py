@@ -251,4 +251,3 @@ def test_revoked_verification_blocks_subsequent_access():
 
     assert after_revocation.status_code == 403
     assert after_revocation.json()["error"]["code"] == "FORBIDDEN"
-
