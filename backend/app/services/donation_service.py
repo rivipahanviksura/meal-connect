@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -8,6 +6,7 @@ from app.db.models.donation import Donation, DonationStatus
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.schemas.donation import DonationCreate
+from app.services.donation_availability import DonationExpiredError, has_pickup_deadline_passed
 
 
 def create_donation(
@@ -25,13 +24,9 @@ def create_donation(
 
     if (
         donation_data.status == "available"
-        and donation_data.pickup_deadline.astimezone(timezone.utc) <= datetime.now(timezone.utc)
+        and has_pickup_deadline_passed(donation_data.pickup_deadline)
     ):
-        raise APIException(
-            status_code=409,
-            code="DONATION_EXPIRED",
-            message="An available donation must have a future pickup deadline.",
-        )
+        raise DonationExpiredError("An available donation must have a future pickup deadline.")
 
     donation = Donation(
         organization_id=organization.organization_id,

@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.schemas.organization_application import (
     ApplicationDocumentResponse,
     ApplicationSubmittedResponse,
+    ApplicationSubmissionRequest,
     DocumentType,
     ApplicationDraftResponse,
     ApplicationListResponse,
@@ -170,6 +171,7 @@ def create_organization_application_router(get_current_user: Callable[..., User]
         application_id: ApplicationId,
         applicant: User = Depends(get_current_user),
         db: Session = Depends(get_db),
+        payload: ApplicationSubmissionRequest | None = None,
     ):
         try:
             result = submit_application(db, applicant.user_id, application_id, resubmitting=False)
@@ -182,6 +184,7 @@ def create_organization_application_router(get_current_user: Callable[..., User]
         application_id: ApplicationId,
         applicant: User = Depends(get_current_user),
         db: Session = Depends(get_db),
+        payload: ApplicationSubmissionRequest | None = None,
     ):
         try:
             result = submit_application(db, applicant.user_id, application_id, resubmitting=True)

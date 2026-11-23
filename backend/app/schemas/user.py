@@ -1,18 +1,26 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, StringConstraints
 
 from app.db.models.user import UserRole, AccountStatus
+from app.schemas.common import DatabaseText, reject_null_character
+
+
+AccountName = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=100),
+    AfterValidator(reject_null_character),
+]
 
 
 class UserCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    first_name: str = Field(min_length=1, max_length=100)
-    last_name: str = Field(min_length=1, max_length=100)
+    first_name: AccountName
+    last_name: AccountName
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
-    phone: str | None = Field(default=None, max_length=25)
+    phone: DatabaseText | None = Field(default=None, max_length=25)
 
 
 class RegistrationRequest(UserCreate):
