@@ -146,6 +146,19 @@ def create_test_application(db):
 def test_real_postgres_rejection(db):
     application_id, admin_id = create_test_application(db)
 
+    # Create original registration evidence.
+    create_pending_review_document(db, application_id)
+
+    # Find the original application submission.
+    original_submission = db.scalar(
+        select(OrganizationApplicationSubmission)
+        .where(
+            OrganizationApplicationSubmission.organization_id
+            == application_id
+        )
+    )
+
+
     result = reject_application(
         db=db,
         application_id=application_id,
@@ -1169,3 +1182,181 @@ def test_real_postgres_resubmit_keeps_organization_and_history(db):
         .where(Organization.organization_id == application_id)
     )
     assert organization_count == 1
+
+
+
+def test_meal13_full_verification_api_workflow(db, monkeypatch):
+    from fastapi.testclient import TestClient
+    from pydantic import SecretStr
+
+    from app.core.security import create_access_token
+    from app.core.config import settings
+    from app.db.session import get_db
+    from app.main import app
+
+    # JWT secret for testing only
+    monkeypatch.setattr(
+        settings,
+        "secret_key",
+        SecretStr("meal13-integration-test-only-secret-key-2026"),
+    )
+
+
+    application_id, admin_id = create_test_application(db)
+
+    # Create original registration evidence
+    create_pending_review_document(db, application_id)
+
+    # Get the original submission from the database
+    original_submission = db.scalar(
+        select(OrganizationApplicationSubmission)
+        .where(
+            OrganizationApplicationSubmission.organization_id
+            == application_id
+        )
+    )
+
+    assert original_submission is not None
+
+
+
+
+    applicant_id = original_submission.submitted_by_user_id
+
+    admin_headers = {
+        "Authorization": f"Bearer {create_access_token(admin_id)}"
+    }
+    applicant_headers = {
+        "Authorization": f"Bearer {create_access_token(applicant_id)}"
+    }
+
+    admin_url = (
+        f"/api/v1/admin/organization-applications/{application_id}"
+    )
+    applicant_url = (
+        f"/api/v1/organization-applications/{application_id}"
+    )
+
+    rejection_reason = (
+        "Registration certificate is incomplete. "
+        "Please upload a corrected copy."
+    )
+
+    original_override = app.dependency_overrides.get(get_db)
+
+    app.dependency_overrides[get_db] = lambda: db
+
+    try:
+        with TestClient(app) as client:
+
+            # 1. Admin rejects the application.
+            reject_response = client.post(
+                f"{admin_url}/reject",
+                json={"reason": rejection_reason},
+                headers=admin_headers,
+            )
+
+            assert reject_response.status_code == 200, (
+                reject_response.text
+            )
+
+            # 2. Applicant views the rejection reason.
+            feedback_response = client.get(
+                "/api/v1/organization-applications/me",
+                headers=applicant_headers,
+            )
+
+            assert feedback_response.status_code == 200, (
+                feedback_response.text
+            )
+
+            applications = feedback_response.json()["data"]
+            assert len(applications) == 1
+            assert applications[0]["status"] == "rejected"
+            assert applications[0]["review_note"] == rejection_reason
+
+            # 3. Applicant uploads corrected evidence.
+            upload_response = client.post(
+                f"{applicant_url}/documents",
+                headers=applicant_headers,
+                data={
+                    "document_type": "registration_certificate"
+                },
+                files={
+                    "file": (
+                        "corrected_registration.pdf",
+                        b"%PDF-1.4\nCorrected registration evidence",
+                        "application/pdf",
+                    )
+                },
+            )
+
+            assert upload_response.status_code == 201, (
+                upload_response.text
+            )
+
+            # 4. Applicant resubmits the same application.
+            resubmit_response = client.post(
+                f"{applicant_url}/resubmit",
+                headers=applicant_headers,
+            )
+
+            assert resubmit_response.status_code == 200, (
+                resubmit_response.text
+            )
+            assert (
+                resubmit_response.json()["data"]["organization_id"]
+                == application_id
+            )
+
+            # 5. Organization returns to pending verification.
+            db.expire_all()
+            organization = db.get(Organization, application_id)
+
+            assert organization is not None
+            assert (
+                organization.verification_status
+                == VerificationStatus.pending
+            )
+
+            # 6. Admin retrieves the pending applications queue.
+            queue_response = client.get(
+                "/api/v1/admin/organization-applications",
+                headers=admin_headers,
+            )
+
+            assert queue_response.status_code == 200, (
+                queue_response.text
+            )
+
+            # Find the organization ID within the queue response.
+            def contains_application_id(value):
+                if isinstance(value, dict):
+                    if (
+                        value.get("application_id") == application_id
+                        or value.get("organization_id") == application_id
+                    ):
+                        return True
+
+                    return any(
+                        contains_application_id(item)
+                        for item in value.values()
+                    )
+
+                if isinstance(value, list):
+                    return any(
+                        contains_application_id(item)
+                        for item in value
+                    )
+
+                return False
+
+            assert contains_application_id(
+                queue_response.json()
+            ), queue_response.text
+
+    finally:
+        if original_override is None:
+            app.dependency_overrides.pop(get_db, None)
+        else:
+            app.dependency_overrides[get_db] = original_override
