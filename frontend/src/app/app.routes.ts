@@ -31,8 +31,26 @@ export const routes: Routes = [
       import('./shared/unauthorized/unauthorized')
         .then(m => m.Unauthorized)
   },
+
+
+ {
+  path: 'organization-feedback',
+  loadComponent: () =>
+    import('./features/organization-feedback/organization-feedback').then(
+      (m) => m.OrganizationFeedback
+    ),
+ },
+ {
+  path: 'admin/organization-verification/:id',
+  loadComponent: () =>
+    import('./features/organization-decision/organization-decision').then(
+      (m) => m.OrganizationDecision
+    ),
+ },
   {
     path: '**',
     redirectTo: ''
   }
+
+
 ];

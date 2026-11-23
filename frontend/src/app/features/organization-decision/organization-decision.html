@@ -1,0 +1,126 @@
+<section aria-labelledby="decision-heading">
+  <h2 id="decision-heading">Organization Verification Decision</h2>
+
+  @if (loading()) {
+    <p role="status">Loading application details...</p>
+  } @else if (errorMessage()) {
+    <div role="alert">
+      <p>{{ errorMessage() }}</p>
+      <button type="button" (click)="loadApplication()">Retry</button>
+    </div>
+  }
+
+  @if (successMessage()) {
+    <p role="status">{{ successMessage() }}</p>
+  }
+
+  @if (!loading() && application(); as app) {
+    <div>
+      <p><strong>Organization:</strong> {{ app.organization_name || app.name }}</p>
+      <p><strong>Type:</strong> {{ app.organization_type || 'N/A' }}</p>
+      <p><strong>Current Status:</strong> {{ app.status }}</p>
+
+      @if (app.documents?.length) {
+        <h3>Submitted Documents</h3>
+        <ul>
+          @for (doc of app.documents; track doc.id) {
+            <li>
+              {{ doc.name }}
+              @if (doc.status) { — {{ doc.status }} }
+              @if (doc.note) { ({{ doc.note }}) }
+            </li>
+          }
+        </ul>
+      }
+
+      <h3>Decision Action</h3>
+      <div>
+        <button type="button" [disabled]="submitting()" (click)="onSelectAction('approve')">
+          Approve
+        </button>
+        <button type="button" [disabled]="submitting()" (click)="onSelectAction('reject')">
+          Reject
+        </button>
+        <button
+          type="button"
+          [disabled]="submitting()"
+          (click)="onSelectAction('request_corrections')"
+        >
+          Request Corrections
+        </button>
+      </div>
+
+      <p><strong>Selected Action:</strong> {{ selectedAction() }}</p>
+
+      <div>
+        <label for="decision-reason">
+          Reason / Feedback {{ selectedAction() !== 'approve' ? '(Required)' : '(Optional)' }}
+        </label>
+        <textarea
+          id="decision-reason"
+          rows="3"
+          [ngModel]="reason()"
+          (ngModelChange)="reason.set($event)"
+          [disabled]="submitting()"
+        ></textarea>
+      </div>
+
+      <div>
+        <label for="internal-comment">Internal Admin Note (Admin only)</label>
+        <input
+          id="internal-comment"
+          type="text"
+          [ngModel]="internalComment()"
+          (ngModelChange)="internalComment.set($event)"
+          [disabled]="submitting()"
+        />
+      </div>
+
+      @if (!confirmRequested()) {
+        <button type="button" [disabled]="submitting()" (click)="requestConfirmation()">
+          Review &amp; Confirm
+        </button>
+      } @else {
+        <div role="region" aria-label="Confirm decision">
+          <p>
+            Confirm action <strong>{{ selectedAction() }}</strong> for
+            <strong>{{ app.organization_name || app.name }}</strong>?
+          </p>
+          <button
+            type="button"
+            [disabled]="submitting()"
+            (click)="confirmSubmitDecision()"
+          >
+            {{ submitting() ? 'Submitting...' : 'Confirm Decision' }}
+          </button>
+          <button
+            type="button"
+            [disabled]="submitting()"
+            (click)="cancelConfirmation()"
+          >
+            Cancel
+          </button>
+        </div>
+      }
+
+      <h3>Decision History</h3>
+      @if (app.history?.length) {
+        <ul>
+          @for (item of app.history; track item.id) {
+            <li>
+              <strong>{{ item.action }}</strong>
+              @if (item.reviewed_at || item.created_at) {
+                — {{ item.reviewed_at || item.created_at }}
+              }
+              @if (item.decided_by) { by {{ item.decided_by }} }
+              @if (item.reason) { <div>Reason: {{ item.reason }}</div> }
+              @if (item.internal_comment) { <div>Internal note: {{ item.internal_comment }}</div> }
+            </li>
+          }
+        </ul>
+      } @else {
+        <p>No decision history recorded yet.</p>
+      }
+    </div>
+  }
+</section>
