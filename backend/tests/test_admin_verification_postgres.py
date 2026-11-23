@@ -1428,3 +1428,106 @@ def test_meal13_additional_certificate_requires_admin_approval(
 
     assert exc_info.value.status_code == 422
     assert exc_info.value.code == "DOCUMENT_NOT_APPROVED"
+
+
+@pytest.mark.parametrize(
+    "document_type",
+    [
+        "food_premises_certificate",
+        "trade_licence",
+    ],
+)
+def test_meal13_certificate_review_then_organization_approval(
+    db,
+    document_type,
+):
+    # Registration certificate is already approved.
+    application_id, admin_id = prepare_reviewed_category_application(
+        db,
+        OrganizationType.restaurant,
+    )
+
+    submission = db.scalar(
+        select(OrganizationApplicationSubmission)
+        .where(
+            OrganizationApplicationSubmission.organization_id
+            == application_id
+        )
+    )
+    assert submission is not None
+
+    applicant_id = submission.submitted_by_user_id
+    content = b"%PDF-1.4\nTest business certificate"
+
+    # Upload an additional certificate.
+    document = OrganizationDocument(
+        organization_id=application_id,
+        uploaded_by_user_id=applicant_id,
+        document_type=document_type,
+        storage_key=uuid4().hex,
+        original_filename=f"{document_type}.pdf",
+        content_type="application/pdf",
+        file_size_bytes=len(content),
+        review_status="pending",
+    )
+
+    db.add(document)
+    db.flush()
+
+    db.add(
+        OrganizationDocumentContent(
+            document_id=document.document_id,
+            content=content,
+        )
+    )
+
+    # Add the document to the current submission snapshot.
+    snapshot = dict(submission.snapshot)
+    document_ids = dict(snapshot["document_ids"])
+    document_ids[document_type] = document.document_id
+    snapshot["document_ids"] = document_ids
+    submission.snapshot = snapshot
+
+    db.commit()
+
+    # Approval must fail before document review.
+    with pytest.raises(APIException) as error:
+        approve_application(
+            db=db,
+            application_id=application_id,
+            admin_id=admin_id,
+            comment="Business documents reviewed successfully.",
+        )
+
+    assert error.value.status_code == 422
+    assert error.value.code == "DOCUMENT_NOT_APPROVED"
+
+    organization = db.get(Organization, application_id)
+    assert organization.verification_status == VerificationStatus.pending
+
+    # Admin approves the additional certificate.
+    review_result = review_application_document(
+        db=db,
+        application_id=application_id,
+        document_id=document.document_id,
+        admin_id=admin_id,
+        decision="approved",
+        review_note="Business certificate reviewed and accepted.",
+    )
+
+    assert review_result["data"]["review_status"] == "approved"
+
+    # Organization approval must now succeed.
+    result = approve_application(
+        db=db,
+        application_id=application_id,
+        admin_id=admin_id,
+        comment="All required evidence reviewed and accepted.",
+    )
+
+    assert result.data.status == "verified"
+
+    db.expire_all()
+    organization = db.get(Organization, application_id)
+
+    assert organization.verification_status == VerificationStatus.approved
