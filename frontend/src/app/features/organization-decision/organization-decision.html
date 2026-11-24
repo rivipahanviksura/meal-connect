@@ -6,6 +6,17 @@
   } @else if (errorMessage()) {
     <div role="alert">
       <p>{{ errorMessage() }}</p>
+      @if (fieldErrors() | keyvalue; as entries) {
+        @if (entries.length > 0) {
+          <ul>
+            @for (entry of entries; track entry.key) {
+              <li>
+                <strong>{{ entry.key }}:</strong> {{ entry.value.join(', ') }}
+              </li>
+            }
+          </ul>
+        }
+      }
       <button type="button" (click)="loadApplication()">Retry</button>
     </div>
   }
@@ -60,7 +71,7 @@
           id="decision-reason"
           rows="3"
           [ngModel]="reason()"
-          (ngModelChange)="reason.set($event)"
+          (ngModelChange)="onReasonChange($event)"
           [disabled]="submitting()"
         ></textarea>
       </div>
@@ -71,7 +82,7 @@
           id="internal-comment"
           type="text"
           [ngModel]="internalComment()"
-          (ngModelChange)="internalComment.set($event)"
+          (ngModelChange)="onInternalCommentChange($event)"
           [disabled]="submitting()"
         />
       </div>
@@ -86,6 +97,12 @@
             Confirm action <strong>{{ selectedAction() }}</strong> for
             <strong>{{ app.organization_name || app.name }}</strong>?
           </p>
+          @if (reason().trim()) {
+            <p><strong>Reason:</strong> {{ reason().trim() }}</p>
+          }
+          @if (internalComment().trim()) {
+            <p><strong>Internal Note:</strong> {{ internalComment().trim() }}</p>
+          }
           <button
             type="button"
             [disabled]="submitting()"

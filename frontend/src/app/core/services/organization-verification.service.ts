@@ -1,10 +1,11 @@
 import { inject, Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
+import { map, Observable } from 'rxjs';
 import { Api } from './api';
 import {
   DecisionRequestPayload,
   MyApplicationsResponse,
   OrganizationApplicationDetail,
+  OrganizationApplicationDetailResponse,
 } from '../models/navigation-account';
 
 @Injectable({
@@ -17,23 +18,49 @@ export class OrganizationVerificationService {
     return this.api.get<MyApplicationsResponse>('/organization-applications/me');
   }
 
-  resubmitApplication(applicationId: number): Observable<unknown> {
+  resubmitApplication(applicationId: number | string): Observable<unknown> {
     return this.api.post(`/organization-applications/${applicationId}/resubmit`, {});
   }
 
-  getApplicationById(applicationId: number | string): Observable<OrganizationApplicationDetail> {
-    return this.api.get<OrganizationApplicationDetail>(
-      `/admin/organization-applications/${applicationId}`
-    );
+  getApplicationById(
+    applicationId: number | string
+  ): Observable<OrganizationApplicationDetail> {
+    return this.api
+      .get<OrganizationApplicationDetail | OrganizationApplicationDetailResponse>(
+        `/admin/organization-applications/${applicationId}`
+      )
+      .pipe(
+        map((res) =>
+          res && typeof res === 'object' && 'data' in res && res.data
+            ? res.data
+            : (res as OrganizationApplicationDetail)
+        )
+      );
   }
 
   submitDecision(
     applicationId: number | string,
     payload: DecisionRequestPayload
   ): Observable<OrganizationApplicationDetail> {
-    return this.api.post<OrganizationApplicationDetail>(
-      `/admin/organization-applications/${applicationId}/decision`,
-      payload
-    );
+    const normalizedPayload: DecisionRequestPayload = {
+      action: payload.action,
+      ...(payload.reason?.trim() ? { reason: payload.reason.trim() } : {}),
+      ...(payload.internal_comment?.trim()
+        ? { internal_comment: payload.internal_comment.trim() }
+        : {}),
+    };
+
+    return this.api
+      .post<OrganizationApplicationDetail | OrganizationApplicationDetailResponse>(
+        `/admin/organization-applications/${applicationId}/decision`,
+        normalizedPayload
+      )
+      .pipe(
+        map((res) =>
+          res && typeof res === 'object' && 'data' in res && res.data
+            ? res.data
+            : (res as OrganizationApplicationDetail)
+        )
+      );
   }
 }

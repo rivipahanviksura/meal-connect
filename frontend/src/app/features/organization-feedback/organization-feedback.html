@@ -6,9 +6,22 @@
   } @else if (errorMessage()) {
     <div role="alert">
       <p>{{ errorMessage() }}</p>
+      @if (fieldErrors() | keyvalue; as entries) {
+        @if (entries.length > 0) {
+          <ul>
+            @for (entry of entries; track entry.key) {
+              <li>
+                <strong>{{ entry.key }}:</strong> {{ entry.value.join(', ') }}
+              </li>
+            }
+          </ul>
+        }
+      }
       <button type="button" (click)="loadStatus()">Retry</button>
     </div>
-  } @else if (feedbackMessage()) {
+  }
+
+  @if (feedbackMessage()) {
     <p role="status">{{ feedbackMessage() }}</p>
   }
 
@@ -25,10 +38,40 @@
         <p>Protected organization features remain locked until verification is approved.</p>
       }
 
-      @if ((app.status === 'rejected' || app.status === 'corrections_requested') && app.review_note) {
+      @if (
+        app.status === 'rejected' ||
+        app.status === 'corrections_requested' ||
+        app.status === 'needs_correction' ||
+        app.status === 'correction_requested'
+      ) {
         <div>
           <h3>Reviewer Feedback</h3>
-          <p>{{ app.review_note }}</p>
+          <p>{{ app.review_note || 'Please address the requested corrections before resubmitting.' }}</p>
+
+          <div>
+            <label for="correction-document">Updated Supporting Document (Optional)</label>
+            <input
+              id="correction-document"
+              type="file"
+              (change)="onDocumentFileSelected($event)"
+              [disabled]="submittingResubmit()"
+            />
+            @if (selectedDocumentName()) {
+              <p>Selected file: {{ selectedDocumentName() }}</p>
+            }
+          </div>
+
+          <div>
+            <label for="correction-note">Correction Details / Response</label>
+            <textarea
+              id="correction-note"
+              rows="3"
+              [ngModel]="correctionNote()"
+              (ngModelChange)="correctionNote.set($event)"
+              [disabled]="submittingResubmit()"
+            ></textarea>
+          </div>
+
           <button
             type="button"
             [disabled]="submittingResubmit()"
@@ -36,7 +79,7 @@
           >
             {{ submittingResubmit() ? 'Resubmitting...' : 'Resubmit Application' }}
           </button>
-          <a routerLink="/home">Back to Home</a>
+          <a routerLink="/">Back to Home</a>
         </div>
       }
     </div>
