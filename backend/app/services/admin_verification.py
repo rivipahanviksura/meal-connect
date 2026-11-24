@@ -247,14 +247,34 @@ def check_registration_evidence(
             ],
         )
 
-    # MEAL-13: Review additional business certificates included in the
-    # submitted evidence snapshot. Missing optional certificates are not
-    # required here; applicability must be decided by the business rules.
-    if organization.type in {OrganizationType.restaurant, OrganizationType.bakery}:
-        for document_type in ("food_premises_certificate", "trade_licence"):
+    # MEAL-13: Restaurants and bakeries must provide both
+    # Food Premises Certificate and Trade Licence.
+    # All required documents must be reviewed and approved.
+
+    if organization.type in {
+        OrganizationType.restaurant,
+        OrganizationType.bakery,
+    }:
+        for document_type in (
+            "food_premises_certificate",
+            "trade_licence",
+        ):
             document_id = document_ids.get(document_type)
+
             if document_id is None:
-                continue
+                raise APIException(
+                    status_code=422,
+                    code="REQUIRED_DOCUMENT_MISSING",
+                    message=f"{document_type} is required for approval.",
+                    fields=[
+                        {
+                            "field": document_type,
+                            "message": "This certificate is required.",
+                            "code": "required",
+                        }
+                    ],
+                )
+
 
             if type(document_id) is not int or document_id <= 0:
                 raise APIException(
@@ -539,7 +559,7 @@ def validate_approval_membership(
         db: Session,
         organization: Organization,
         submission: OrganizationApplicationSubmission,
-) -> None:
+) -> OrganizationMembership:
     """
     Check applicant ownership, account status,
     and organization-role consistency.
@@ -552,8 +572,9 @@ def validate_approval_membership(
             == organization.organization_id,
             OrganizationMembership.membership_role
             == MembershipRole.owner,
-            OrganizationMembership.member_status
-            == MemberStatus.active,
+            OrganizationMembership.member_status.in_(
+                (MemberStatus.invited, MemberStatus.active)
+            ),
         )
     )
 
@@ -561,7 +582,7 @@ def validate_approval_membership(
         raise APIException(
             status_code=409,
             code="INVALID_MEMBERSHIP",
-            message="An active organization owner is required.",
+            message="An invited or active organization owner is required.",
         )
 
     if membership.user_id != submission.submitted_by_user_id:
@@ -612,6 +633,9 @@ def validate_approval_membership(
             message="Applicant is linked to another organization.",
         )
 
+    return membership
+
+
 def approve_application(
     db: Session,
     application_id: int,
@@ -656,11 +680,14 @@ def approve_application(
             submission=submission,
         )
 
-        validate_approval_membership(
+        membership = validate_approval_membership(
             db=db,
             organization=organization,
             submission=submission,
         )
+
+        # Activate the verified owner in the same approval transaction.
+        membership.member_status = MemberStatus.active
 
         reviewed_at = datetime.now(timezone.utc)
 

@@ -332,51 +332,52 @@ def test_real_postgres_successful_approval(db):
     assert submission is not None
 
     document_content = b"%PDF-1.4\nTest content"
+    document_ids = {}
+    reviewed_at = datetime.now(timezone.utc)
 
-    document = OrganizationDocument(
-        organization_id=application_id,
-        uploaded_by_user_id=submission.submitted_by_user_id,
-        document_type="registration_certificate",
-        storage_key=uuid4().hex,
-        original_filename="test_registration.pdf",
-        content_type="application/pdf",
-        file_size_bytes=len(document_content),
-        review_status="approved",
-    )
-
-    db.add(document)
-    db.flush()
-
-    db.add(
-        OrganizationDocumentContent(
-            document_id=document.document_id,
-            content=document_content,
+    for document_type in (
+        "registration_certificate",
+        "food_premises_certificate",
+        "trade_licence",
+    ):
+        document = OrganizationDocument(
+            organization_id=application_id,
+            uploaded_by_user_id=submission.submitted_by_user_id,
+            document_type=document_type,
+            storage_key=uuid4().hex,
+            original_filename=f"{document_type}.pdf",
+            content_type="application/pdf",
+            file_size_bytes=len(document_content),
+            review_status="approved",
+            reviewed_at=reviewed_at,
         )
-    )
+        db.add(document)
+        db.flush()
+
+        db.add(
+            OrganizationDocumentContent(
+                document_id=document.document_id,
+                content=document_content,
+            )
+        )
+        db.add(
+            StatusHistory(
+                entity_type="organization_document",
+                entity_id=document.document_id,
+                old_status="pending",
+                new_status="approved",
+                changed_by_user_id=admin_id,
+                change_reason="Required document reviewed and accepted.",
+                changed_at=reviewed_at,
+            )
+        )
+        document_ids[document_type] = document.document_id
 
     submission.snapshot = {
         "organization_type": "restaurant",
         "details": {},
-        "document_ids": {
-            "registration_certificate": document.document_id,
-        },
+        "document_ids": document_ids,
     }
-
-    # Record the document review audit required for application approval.
-    reviewed_at = datetime.now(timezone.utc)
-    document.reviewed_at = reviewed_at
-
-    db.add(
-        StatusHistory(
-            entity_type="organization_document",
-            entity_id=document.document_id,
-            old_status="pending",
-            new_status="approved",
-            changed_by_user_id=admin_id,
-            change_reason="Registration evidence reviewed and accepted.",
-            changed_at=reviewed_at,
-        )
-    )
 
     db.commit()
 
@@ -969,6 +970,40 @@ def prepare_reviewed_category_application(db, organization_type):
         review_note="Registration evidence was reviewed and accepted.",
     )
 
+    if organization_type in {OrganizationType.restaurant, OrganizationType.bakery}:
+        # Business applications must have both additional certificates.
+        for document_type in ("food_premises_certificate", "trade_licence"):
+            content = f"%PDF-1.4\nTest {document_type}".encode()
+            certificate = OrganizationDocument(
+                organization_id=application_id,
+                uploaded_by_user_id=submission.submitted_by_user_id,
+                document_type=document_type,
+                storage_key=uuid4().hex,
+                original_filename=f"{document_type}.pdf",
+                content_type="application/pdf",
+                file_size_bytes=len(content),
+                review_status="pending",
+            )
+            db.add(certificate)
+            db.flush()
+            db.add(OrganizationDocumentContent(
+                document_id=certificate.document_id, content=content
+            ))
+            snapshot = dict(submission.snapshot)
+            document_ids = dict(snapshot["document_ids"])
+            document_ids[document_type] = certificate.document_id
+            snapshot["document_ids"] = document_ids
+            submission.snapshot = snapshot
+            db.commit()
+            review_application_document(
+                db=db,
+                application_id=application_id,
+                document_id=certificate.document_id,
+                admin_id=admin_id,
+                decision="approved",
+                review_note="Required business certificate reviewed and accepted.",
+            )
+
     return application_id, admin_id
 
 
@@ -1145,6 +1180,18 @@ def test_real_postgres_resubmit_keeps_organization_and_history(db):
 
     assert corrected_document.document_id != original_document_id
 
+    # A restaurant must also upload both mandatory business certificates.
+    for document_type in ("food_premises_certificate", "trade_licence"):
+        save_application_document(
+            db=db,
+            user_id=applicant_id,
+            application_id=application_id,
+            document_type=document_type,
+            filename=f"{document_type}.pdf",
+            content_type="application/pdf",
+            content=f"%PDF-1.4\n{document_type} evidence".encode(),
+        )
+
     result = submit_application(
         db=db,
         user_id=applicant_id,
@@ -1294,6 +1341,20 @@ def test_meal13_full_verification_api_workflow(db, monkeypatch):
             assert upload_response.status_code == 201, (
                 upload_response.text
             )
+
+            # Include both mandatory business certificates before resubmission.
+            for document_type in ("food_premises_certificate", "trade_licence"):
+                extra_response = client.post(
+                    f"{applicant_url}/documents",
+                    headers=applicant_headers,
+                    data={"document_type": document_type},
+                    files={"file": (
+                        f"{document_type}.pdf",
+                        f"%PDF-1.4\n{document_type} evidence".encode(),
+                        "application/pdf",
+                    )},
+                )
+                assert extra_response.status_code == 201, extra_response.text
 
             # 4. Applicant resubmits the same application.
             resubmit_response = client.post(
@@ -1531,3 +1592,45 @@ def test_meal13_certificate_review_then_organization_approval(
     organization = db.get(Organization, application_id)
 
     assert organization.verification_status == VerificationStatus.approved
+
+
+def test_meal13_invited_owner_becomes_active_after_approval(db):
+    application_id, admin_id = prepare_reviewed_category_application(
+        db, OrganizationType.restaurant
+    )
+
+    membership = db.scalar(
+        select(OrganizationMembership).where(
+            OrganizationMembership.organization_id == application_id,
+            OrganizationMembership.membership_role == MembershipRole.owner,
+        )
+    )
+
+    assert membership is not None
+
+    # Simulate the membership created by the normal draft workflow.
+    membership.member_status = MemberStatus.invited
+    db.commit()
+
+    result = approve_application(
+        db=db,
+        application_id=application_id,
+        admin_id=admin_id,
+        comment="Application documents reviewed and approved.",
+    )
+
+    db.expire_all()
+
+    membership = db.scalar(
+        select(OrganizationMembership).where(
+            OrganizationMembership.organization_id == application_id,
+            OrganizationMembership.membership_role == MembershipRole.owner,
+        )
+    )
+    organization = db.get(Organization, application_id)
+
+    assert membership is not None
+    assert membership.member_status == MemberStatus.active
+    assert organization is not None
+    assert organization.verification_status == VerificationStatus.approved
+    assert result.data.status == "verified"
