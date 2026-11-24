@@ -231,3 +231,61 @@ class DonationPagination(BaseModel):
 class DonationListResponse(BaseModel):
     data: list[DonationListItem]
     pagination: DonationPagination
+
+class DonationDetailData(BaseModel):
+    """Donation details returned to authorized users."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    donation_id: int
+    organization_id: int
+
+    title: str
+    category: str
+    description: str | None
+
+    total_quantity: Decimal
+    allocated_quantity: Decimal
+    quantity_unit: str
+
+    allergen_info: str | None
+    storage_instructions: str | None
+
+    prepared_at: datetime | None
+    available_from: datetime
+    pickup_deadline: datetime
+
+    pickup_address: str
+    pickup_city: str
+
+    status: DonationStatus
+    created_at: datetime
+    updated_at: datetime
+
+    @computed_field
+    @property
+    def remaining_quantity(self) -> Decimal:
+        return self.total_quantity - self.allocated_quantity
+
+    @field_serializer(
+        "prepared_at",
+        "available_from",
+        "pickup_deadline",
+        "created_at",
+        "updated_at",
+        when_used="json",
+    )
+    def serialize_utc(
+        self, value: datetime | None
+    ) -> datetime | None:
+        if value is None:
+            return None
+
+        if value.utcoffset() is None:
+            value = value.replace(tzinfo=timezone.utc)
+
+        return value.astimezone(timezone.utc)
+
+
+class DonationDetailResponse(BaseModel):
+    data: DonationDetailData
