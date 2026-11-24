@@ -9,13 +9,11 @@ from app.api.organization_application import (
     create_organization_application_router,
 )
 from app.api.food_safety import router as food_safety_router
-
-# Donation Edit/Cancel routes
 from app.api.donation_edit_cancel import (
     router as donation_edit_cancel_router,
 )
 
-# MEAL-88: Admin application queue
+# MEAL-88: Admin organization application queue
 from app.api.admin_organization_applications import (
     router as admin_organization_applications_router,
 )
@@ -38,7 +36,7 @@ api_router.include_router(
 api_router.include_router(food_safety_router)
 api_router.include_router(donations_router)
 
-# Donation Edit/Cancel
+# Donation Edit / Cancel
 api_router.include_router(donation_edit_cancel_router)
 
 # MEAL-88
