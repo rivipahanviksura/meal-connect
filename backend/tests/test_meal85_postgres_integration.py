@@ -1,3 +1,4 @@
+
 """Opt-in PostgreSQL integration tests for MEAL-85.
 
 Required disposable databases:
@@ -9,6 +10,12 @@ Required disposable databases:
 
 Both database names must start with "meal85_".
 These tests never create or drop databases.
+
+MVP membership lifecycle:
+- A user may belong to only one organization.
+- The restriction applies regardless of membership status.
+- A removed membership does not permit self-rejoining another organization.
+- Ownership recovery or transfer must follow an Admin-mediated process.
 """
 
 import os
@@ -109,7 +116,7 @@ def _run_alembic(database_url: str, *arguments: str):
 
 
 def test_postgresql_enforces_meal85_unique_constraints():
-    """Verify actual PostgreSQL NULLS NOT DISTINCT and membership behavior."""
+    """Verify PostgreSQL registration and membership uniqueness behavior."""
     engine = _engine_from_env("MEAL85_TEST_DATABASE_URL")
 
     try:
@@ -200,7 +207,45 @@ def test_postgresql_enforces_meal85_unique_constraints():
                     },
                 )
 
-                # A user cannot be linked to a second organization.
+                # An active member cannot join a second organization.
+                with pytest.raises(IntegrityError):
+                    with connection.begin_nested():
+                        connection.execute(
+                            text(
+                                """
+                                INSERT INTO organization_memberships (
+                                    organization_id,
+                                    user_id,
+                                    membership_role,
+                                    member_status
+                                )
+                                VALUES (
+                                    :organization_id,
+                                    :user_id,
+                                    'owner',
+                                    'active'
+                                )
+                                """
+                            ),
+                            {
+                                "organization_id": bakery_id,
+                                "user_id": user_id,
+                            },
+                        )
+
+                # Removing a membership does not permit the user to join
+                # another organization under the MVP one-organization rule.
+                connection.execute(
+                    text(
+                        """
+                        UPDATE organization_memberships
+                        SET member_status = 'removed'
+                        WHERE user_id = :user_id
+                        """
+                    ),
+                    {"user_id": user_id},
+                )
+
                 with pytest.raises(IntegrityError):
                     with connection.begin_nested():
                         connection.execute(
