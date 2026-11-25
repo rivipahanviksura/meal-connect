@@ -26,11 +26,12 @@
   }
 
   @if (!loading() && application(); as app) {
+    @let currentStatus = app.verification_status || app.status;
     <div>
-      <p><strong>Organization:</strong> {{ app.name }}</p>
-      <p><strong>Current Status:</strong> {{ app.status }}</p>
+      <p><strong>Organization:</strong> {{ app.organization_name || app.name }}</p>
+      <p><strong>Current Status:</strong> {{ currentStatus }}</p>
 
-      @if (app.status === 'verified' || app.status === 'approved') {
+      @if (currentStatus === 'verified' || currentStatus === 'approved') {
         <p role="status">
           Your organization is verified. Protected features are now available.
         </p>
@@ -38,15 +39,21 @@
         <p>Protected organization features remain locked until verification is approved.</p>
       }
 
-      @if (
-        app.status === 'rejected' ||
-        app.status === 'corrections_requested' ||
-        app.status === 'needs_correction' ||
-        app.status === 'correction_requested'
-      ) {
+      @if (canResubmit(currentStatus)) {
         <div>
           <h3>Reviewer Feedback</h3>
           <p>{{ app.review_note || 'Please address the requested corrections before resubmitting.' }}</p>
+
+          <div>
+            <label for="correction-document-type">Document Type</label>
+            <input
+              id="correction-document-type"
+              type="text"
+              [ngModel]="documentType()"
+              (ngModelChange)="documentType.set($event)"
+              [disabled]="submittingResubmit()"
+            />
+          </div>
 
           <div>
             <label for="correction-document">Updated Supporting Document (Optional)</label>

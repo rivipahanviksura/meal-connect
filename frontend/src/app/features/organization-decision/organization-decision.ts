@@ -4,10 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
+  AdminDecisionValue,
   DecisionAction,
   OrganizationApplicationDetail,
 } from '../../core/models/navigation-account';
 import { OrganizationVerificationService } from '../../core/services/organization-verification.service';
+
+const MIN_REVIEW_NOTE_LENGTH = 10;
 
 @Component({
   selector: 'app-organization-decision',
@@ -29,8 +32,7 @@ export class OrganizationDecision implements OnInit {
   protected readonly application = signal<OrganizationApplicationDetail | null>(null);
 
   protected selectedAction = signal<DecisionAction>('approve');
-  protected reason = signal('');
-  protected internalComment = signal('');
+  protected reviewNote = signal('');
   protected confirmRequested = signal(false);
 
   private resolvedId: number | string | null = null;
@@ -53,10 +55,8 @@ export class OrganizationDecision implements OnInit {
     this.fieldErrors.set({});
 
     this.verificationService.getApplicationById(this.resolvedId).subscribe({
-      next: (res) => {
-        // Backend (MEAL-89) returns wrapped in 'data' envelope
-        const data = (res as any)?.data ?? res;
-        this.application.set(data);
+      next: (detail) => {
+        this.application.set(detail);
         this.loading.set(false);
       },
       error: (err: unknown) => {
@@ -71,14 +71,15 @@ export class OrganizationDecision implements OnInit {
     this.resetConfirmation();
   }
 
-  onReasonChange(val: string): void {
-    this.reason.set(val);
+  onReviewNoteChange(val: string): void {
+    this.reviewNote.set(val);
     this.resetConfirmation();
   }
 
-  onInternalCommentChange(val: string): void {
-    this.internalComment.set(val);
-    this.resetConfirmation();
+  protected mapActionToDecision(action: DecisionAction): AdminDecisionValue {
+    if (action === 'approve') return 'approved';
+    if (action === 'reject') return 'rejected';
+    return 'request_corrections';
   }
 
   private resetConfirmation(): void {
@@ -95,12 +96,10 @@ export class OrganizationDecision implements OnInit {
     this.successMessage.set(null);
     this.fieldErrors.set({});
 
-    const action = this.selectedAction();
-    const trimmedReason = this.reason().trim();
-
-    if ((action === 'reject' || action === 'request_corrections') && trimmedReason.length < 5) {
+    const trimmedNote = this.reviewNote().trim();
+    if (trimmedNote.length < MIN_REVIEW_NOTE_LENGTH) {
       this.errorMessage.set(
-        'Please enter a meaningful reason (at least 5 characters) for rejection or corrections.'
+        `Please enter a review note of at least ${MIN_REVIEW_NOTE_LENGTH} characters for all decisions.`
       );
       return;
     }
@@ -117,25 +116,37 @@ export class OrganizationDecision implements OnInit {
       return;
     }
 
+    const trimmedNote = this.reviewNote().trim();
+    if (trimmedNote.length < MIN_REVIEW_NOTE_LENGTH) {
+      this.errorMessage.set(
+        `Please enter a review note of at least ${MIN_REVIEW_NOTE_LENGTH} characters for all decisions.`
+      );
+      this.confirmRequested.set(false);
+      return;
+    }
+
     this.submitting.set(true);
     this.errorMessage.set(null);
     this.successMessage.set(null);
     this.fieldErrors.set({});
 
-    const action = this.selectedAction();
+    const decision = this.mapActionToDecision(this.selectedAction());
     const payload = {
-      action,
-      reason: this.reason().trim() || undefined,
-      internal_comment: this.internalComment().trim() || undefined,
+      decision,
+      review_note: trimmedNote,
     };
 
     this.verificationService.submitDecision(this.resolvedId, payload).subscribe({
-      next: () => {
+      next: (decisionRes) => {
         this.submitting.set(false);
         this.confirmRequested.set(false);
-        this.reason.set('');
-        this.internalComment.set('');
-        this.successMessage.set(`Decision "${action}" submitted successfully.`);
+        this.reviewNote.set('');
+
+        const updatedStatus = decisionRes?.data?.verification_status ?? decision;
+        this.successMessage.set(
+          decisionRes?.message ||
+            `Decision "${decision}" submitted successfully (Status: ${updatedStatus}).`
+        );
         this.loadApplication();
       },
       error: (err: unknown) => {

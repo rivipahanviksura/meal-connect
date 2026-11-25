@@ -10,6 +10,7 @@ describe('OrganizationFeedback', () => {
   let fixture: ComponentFixture<OrganizationFeedback>;
   let verificationServiceMock: {
     getMyApplications: ReturnType<typeof vi.fn>;
+    uploadDocument: ReturnType<typeof vi.fn>;
     resubmitApplication: ReturnType<typeof vi.fn>;
     getApplicationById: ReturnType<typeof vi.fn>;
     submitDecision: ReturnType<typeof vi.fn>;
@@ -18,6 +19,7 @@ describe('OrganizationFeedback', () => {
   beforeEach(async () => {
     verificationServiceMock = {
       getMyApplications: vi.fn(),
+      uploadDocument: vi.fn(),
       resubmitApplication: vi.fn(),
       getApplicationById: vi.fn(),
       submitDecision: vi.fn(),
@@ -39,23 +41,31 @@ describe('OrganizationFeedback', () => {
           {
             application_id: 22,
             organization_id: 8,
-            name: 'Green Valley Foods',
-            status: 'rejected',
+            organization_name: 'Green Valley Foods',
+            verification_status: 'request_corrections',
             review_note: 'Missing business license',
           },
         ],
       })
     );
-    verificationServiceMock.resubmitApplication.mockReturnValue(of({ status: 'pending' }));
+    verificationServiceMock.resubmitApplication.mockReturnValue(
+      of({ verification_status: 'pending' })
+    );
 
     fixture = TestBed.createComponent(OrganizationFeedback);
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Green Valley Foods');
     expect(host.textContent).toContain('Missing business license');
     expect(host.textContent).toContain(
       'Protected organization features remain locked until verification is approved.'
     );
+
+    const noteTextarea = host.querySelector('#correction-note') as HTMLTextAreaElement;
+    noteTextarea.value = 'Updated license details';
+    noteTextarea.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
 
     const resubmitBtn = Array.from(host.querySelectorAll('button')).find((b) =>
       b.textContent?.includes('Resubmit Application')
@@ -63,8 +73,71 @@ describe('OrganizationFeedback', () => {
     resubmitBtn?.click();
     fixture.detectChanges();
 
-    expect(verificationServiceMock.resubmitApplication).toHaveBeenCalledWith(22);
+    expect(verificationServiceMock.uploadDocument).not.toHaveBeenCalled();
+    expect(verificationServiceMock.resubmitApplication).toHaveBeenCalledWith(
+      22,
+      'Updated license details'
+    );
     expect(host.textContent).toContain('Application resubmitted for verification.');
+  });
+
+  it('uploads selected document before resubmitting application', () => {
+    const callOrder: string[] = [];
+
+    verificationServiceMock.getMyApplications.mockReturnValue(
+      of({
+        data: [
+          {
+            application_id: 22,
+            organization_id: 8,
+            organization_name: 'Green Valley Foods',
+            verification_status: 'rejected',
+            review_note: 'Please upload valid registration proof',
+          },
+        ],
+      })
+    );
+    verificationServiceMock.uploadDocument.mockImplementation(() => {
+      callOrder.push('uploadDocument');
+      return of({ document_id: 99 });
+    });
+    verificationServiceMock.resubmitApplication.mockImplementation(() => {
+      callOrder.push('resubmitApplication');
+      return of({ verification_status: 'pending' });
+    });
+
+    fixture = TestBed.createComponent(OrganizationFeedback);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const fileInput = host.querySelector('#correction-document') as HTMLInputElement;
+    const file = new File(['dummy content'], 'business-license.pdf', {
+      type: 'application/pdf',
+    });
+
+    Object.defineProperty(fileInput, 'files', {
+      value: [file],
+      configurable: true,
+    });
+    fileInput.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    const resubmitBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Resubmit Application')
+    );
+    resubmitBtn?.click();
+    fixture.detectChanges();
+
+    expect(verificationServiceMock.uploadDocument).toHaveBeenCalledWith(
+      22,
+      file,
+      'supporting_document'
+    );
+    expect(verificationServiceMock.resubmitApplication).toHaveBeenCalledWith(22, '');
+    expect(callOrder).toEqual(['uploadDocument', 'resubmitApplication']);
+    expect(host.textContent).toContain(
+      'Document uploaded and application resubmitted for verification.'
+    );
   });
 
   it('displays unlocked status message when organization is approved', () => {
@@ -74,8 +147,8 @@ describe('OrganizationFeedback', () => {
           {
             application_id: 22,
             organization_id: 8,
-            name: 'Green Valley Foods',
-            status: 'approved',
+            organization_name: 'Green Valley Foods',
+            verification_status: 'approved',
           },
         ],
       })

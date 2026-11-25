@@ -3,6 +3,7 @@ import { map, Observable } from 'rxjs';
 import { Api } from './api';
 import {
   DecisionRequestPayload,
+  DecisionResponsePayload,
   MyApplicationsResponse,
   OrganizationApplicationDetail,
   OrganizationApplicationDetailResponse,
@@ -18,49 +19,67 @@ export class OrganizationVerificationService {
     return this.api.get<MyApplicationsResponse>('/organization-applications/me');
   }
 
-  resubmitApplication(applicationId: number | string): Observable<unknown> {
-    return this.api.post(`/organization-applications/${applicationId}/resubmit`, {});
+  uploadDocument(
+    applicationId: number | string,
+    file: File,
+    documentType: string
+  ): Observable<unknown> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('document_type', documentType);
+
+    return this.api.post(
+      `/organization-applications/${applicationId}/documents`,
+      formData
+    );
+  }
+
+  resubmitApplication(
+    applicationId: number | string,
+    correctionNote?: string
+  ): Observable<unknown> {
+    const trimmedNote = correctionNote?.trim();
+    const body = trimmedNote ? { correction_note: trimmedNote } : {};
+
+    return this.api.post(
+      `/organization-applications/${applicationId}/resubmit`,
+      body
+    );
   }
 
   getApplicationById(
     applicationId: number | string
   ): Observable<OrganizationApplicationDetail> {
     return this.api
-      .get<OrganizationApplicationDetail | OrganizationApplicationDetailResponse>(
+      .get<OrganizationApplicationDetailResponse>(
         `/admin/organization-applications/${applicationId}`
       )
       .pipe(
-        map((res) =>
-          res && typeof res === 'object' && 'data' in res && res.data
-            ? res.data
-            : (res as OrganizationApplicationDetail)
-        )
+        map((res) => {
+          const detail = res?.data;
+          return {
+            ...detail,
+            verification_status: detail?.verification_status ?? detail?.status ?? '',
+            documents: detail?.documents ?? [],
+            status_history: detail?.status_history ?? [],
+            reviews: detail?.reviews ?? [],
+          };
+        })
       );
   }
 
   submitDecision(
     applicationId: number | string,
     payload: DecisionRequestPayload
-  ): Observable<OrganizationApplicationDetail> {
+  ): Observable<DecisionResponsePayload> {
     const normalizedPayload: DecisionRequestPayload = {
-      action: payload.action,
-      ...(payload.reason?.trim() ? { reason: payload.reason.trim() } : {}),
-      ...(payload.internal_comment?.trim()
-        ? { internal_comment: payload.internal_comment.trim() }
-        : {}),
+      decision: payload.decision,
+      review_note: payload.review_note.trim(),
     };
 
-    return this.api
-      .post<OrganizationApplicationDetail | OrganizationApplicationDetailResponse>(
-        `/admin/organization-applications/${applicationId}/decision`,
-        normalizedPayload
-      )
-      .pipe(
-        map((res) =>
-          res && typeof res === 'object' && 'data' in res && res.data
-            ? res.data
-            : (res as OrganizationApplicationDetail)
-        )
-      );
+    return this.api.post<DecisionResponsePayload>(
+      `/admin/organization-applications/${applicationId}/decision`,
+      normalizedPayload
+    );
   }
 }

@@ -29,16 +29,16 @@
     <div>
       <p><strong>Organization:</strong> {{ app.organization_name || app.name }}</p>
       <p><strong>Type:</strong> {{ app.organization_type || 'N/A' }}</p>
-      <p><strong>Current Status:</strong> {{ app.status }}</p>
+      <p><strong>Current Status:</strong> {{ app.verification_status }}</p>
 
-      @if (app.documents?.length) {
+      @if (app.documents.length) {
         <h3>Submitted Documents</h3>
         <ul>
-          @for (doc of app.documents; track doc.id) {
+          @for (doc of app.documents; track doc.document_id ?? doc.id) {
             <li>
-              {{ doc.name }}
-              @if (doc.status) { — {{ doc.status }} }
-              @if (doc.note) { ({{ doc.note }}) }
+              {{ doc.original_filename || doc.name }}
+              @if (doc.review_status || doc.status) { — {{ doc.review_status || doc.status }} }
+              @if (doc.review_note || doc.note) { ({{ doc.review_note || doc.note }}) }
             </li>
           }
         </ul>
@@ -61,30 +61,20 @@
         </button>
       </div>
 
-      <p><strong>Selected Action:</strong> {{ selectedAction() }}</p>
+      <p><strong>Selected Decision:</strong> {{ mapActionToDecision(selectedAction()) }}</p>
 
       <div>
-        <label for="decision-reason">
-          Reason / Feedback {{ selectedAction() !== 'approve' ? '(Required)' : '(Optional)' }}
+        <label for="decision-review-note">
+          Review Note (Required, min 10 characters for all decisions)
         </label>
         <textarea
-          id="decision-reason"
+          id="decision-review-note"
           rows="3"
-          [ngModel]="reason()"
-          (ngModelChange)="onReasonChange($event)"
+          minlength="10"
+          [ngModel]="reviewNote()"
+          (ngModelChange)="onReviewNoteChange($event)"
           [disabled]="submitting()"
         ></textarea>
-      </div>
-
-      <div>
-        <label for="internal-comment">Internal Admin Note (Admin only)</label>
-        <input
-          id="internal-comment"
-          type="text"
-          [ngModel]="internalComment()"
-          (ngModelChange)="onInternalCommentChange($event)"
-          [disabled]="submitting()"
-        />
       </div>
 
       @if (!confirmRequested()) {
@@ -94,14 +84,11 @@
       } @else {
         <div role="region" aria-label="Confirm decision">
           <p>
-            Confirm action <strong>{{ selectedAction() }}</strong> for
+            Confirm decision <strong>{{ mapActionToDecision(selectedAction()) }}</strong> for
             <strong>{{ app.organization_name || app.name }}</strong>?
           </p>
-          @if (reason().trim()) {
-            <p><strong>Reason:</strong> {{ reason().trim() }}</p>
-          }
-          @if (internalComment().trim()) {
-            <p><strong>Internal Note:</strong> {{ internalComment().trim() }}</p>
+          @if (reviewNote().trim()) {
+            <p><strong>Review Note:</strong> {{ reviewNote().trim() }}</p>
           }
           <button
             type="button"
@@ -120,23 +107,27 @@
         </div>
       }
 
-      <h3>Decision History</h3>
-      @if (app.history?.length) {
+      <h3>Status History</h3>
+      @if (app.status_history.length) {
         <ul>
-          @for (item of app.history; track item.id) {
+          @for (item of app.status_history; track $index) {
             <li>
-              <strong>{{ item.action }}</strong>
-              @if (item.reviewed_at || item.created_at) {
-                — {{ item.reviewed_at || item.created_at }}
+              <strong>{{ item.verification_status || item.status || item.decision || item.action }}</strong>
+              @if (item.changed_at || item.reviewed_at || item.created_at) {
+                — {{ item.changed_at || item.reviewed_at || item.created_at }}
               }
-              @if (item.decided_by) { by {{ item.decided_by }} }
-              @if (item.reason) { <div>Reason: {{ item.reason }}</div> }
-              @if (item.internal_comment) { <div>Internal note: {{ item.internal_comment }}</div> }
+              @if (item.decided_by || item.actor) { by {{ item.decided_by || item.actor }} }
+              @if (item.review_note || item.reason) {
+                <div>Review note: {{ item.review_note || item.reason }}</div>
+              }
+              @if (item.internal_comment || item.internal_note) {
+                <div>Internal note: {{ item.internal_comment || item.internal_note }}</div>
+              }
             </li>
           }
         </ul>
       } @else {
-        <p>No decision history recorded yet.</p>
+        <p>No status history recorded yet.</p>
       }
     </div>
   }

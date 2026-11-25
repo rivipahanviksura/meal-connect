@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { OrganizationDecision } from './organization-decision';
 import { OrganizationVerificationService } from '../../core/services/organization-verification.service';
 import {
+  DecisionResponsePayload,
   NavigationSession,
   OrganizationApplicationDetail,
 } from '../../core/models/navigation-account';
@@ -23,16 +24,42 @@ describe('OrganizationDecision', () => {
   };
 
   const mockApplication: OrganizationApplicationDetail = {
+    application_id: 101,
     id: 101,
     organization_id: 12,
     organization_name: 'Hope Kitchen',
     organization_type: 'NGO',
+    verification_status: 'pending',
     status: 'pending',
     documents: [
-      { id: 1, name: 'registration.pdf', status: 'submitted' },
+      {
+        document_id: 1,
+        original_filename: 'registration.pdf',
+        review_status: 'submitted',
+      },
     ],
-    history: [],
+    status_history: [],
   };
+
+  const validReviewNote = 'Verified registration documents and organization details.';
+
+  function setReviewNote(value: string): void {
+    const textarea = fixture.nativeElement.querySelector(
+      '#decision-review-note'
+    ) as HTMLTextAreaElement;
+    textarea.value = value;
+    textarea.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+  }
+
+  function clickButtonByText(text: string): void {
+    const host = fixture.nativeElement as HTMLElement;
+    const btn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes(text)
+    );
+    btn?.click();
+    fixture.detectChanges();
+  }
 
   beforeEach(async () => {
     verificationServiceMock = {
@@ -61,157 +88,141 @@ describe('OrganizationDecision', () => {
     fixture.detectChanges();
   });
 
-  it('approves an organization application after confirmation', () => {
-    verificationServiceMock.submitDecision.mockReturnValue(
-      of({ ...mockApplication, status: 'approved' })
-    );
-
+  it('loads wrapped application details including documents and status history', () => {
     const host = fixture.nativeElement as HTMLElement;
-    const buttons = Array.from(host.querySelectorAll('button'));
-    const approveBtn = buttons.find((b) => b.textContent?.trim() === 'Approve');
-    approveBtn?.click();
-    fixture.detectChanges();
-
-    const reviewBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Review & Confirm')
-    );
-    reviewBtn?.click();
-    fixture.detectChanges();
-
-    const confirmBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Confirm Decision')
-    );
-    confirmBtn?.click();
-    fixture.detectChanges();
-
-    expect(verificationServiceMock.submitDecision).toHaveBeenCalledWith('101', {
-      action: 'approve',
-      reason: undefined,
-      internal_comment: undefined,
-    });
-    expect(host.textContent).toContain('Decision "approve" submitted successfully.');
+    expect(verificationServiceMock.getApplicationById).toHaveBeenCalledWith('101');
+    expect(host.textContent).toContain('Hope Kitchen');
+    expect(host.textContent).toContain('pending');
+    expect(host.textContent).toContain('registration.pdf');
+    expect(host.textContent).toContain('No status history recorded yet.');
   });
 
-  it('requires a meaningful reason and submits rejection with reason and internal note', () => {
-    verificationServiceMock.submitDecision.mockReturnValue(
-      of({ ...mockApplication, status: 'rejected' })
-    );
+  it('requires at least 10 characters for review_note even when approving', () => {
+    const host = fixture.nativeElement as HTMLElement;
+    clickButtonByText('Approve');
+    setReviewNote('Too short');
+    clickButtonByText('Review & Confirm');
+
+    expect(host.textContent).toContain('at least 10 characters');
+    expect(verificationServiceMock.submitDecision).not.toHaveBeenCalled();
+  });
+
+  it('approves an organization application with decision and review_note after confirmation', () => {
+    const response: DecisionResponsePayload = {
+      data: {
+        application_id: 101,
+        verification_status: 'approved',
+        review_note: validReviewNote,
+      },
+      message: 'Decision "approved" submitted successfully.',
+    };
+    verificationServiceMock.submitDecision.mockReturnValue(of(response));
 
     const host = fixture.nativeElement as HTMLElement;
-    const rejectBtn = Array.from(host.querySelectorAll('button')).find(
-      (b) => b.textContent?.trim() === 'Reject'
-    );
-    rejectBtn?.click();
-    fixture.detectChanges();
-
-    const reviewBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Review & Confirm')
-    );
-    reviewBtn?.click();
-    fixture.detectChanges();
-
-    expect(host.textContent).toContain('Please enter a meaningful reason');
-
-    const textarea = host.querySelector('#decision-reason') as HTMLTextAreaElement;
-    textarea.value = 'Incomplete registration certificate';
-    textarea.dispatchEvent(new Event('input'));
-
-    const noteInput = host.querySelector('#internal-comment') as HTMLInputElement;
-    noteInput.value = 'Checked registry database';
-    noteInput.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-
-    reviewBtn?.click();
-    fixture.detectChanges();
-
-    const confirmBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Confirm Decision')
-    );
-    confirmBtn?.click();
-    fixture.detectChanges();
+    clickButtonByText('Approve');
+    setReviewNote(validReviewNote);
+    clickButtonByText('Review & Confirm');
+    clickButtonByText('Confirm Decision');
 
     expect(verificationServiceMock.submitDecision).toHaveBeenCalledWith('101', {
-      action: 'reject',
-      reason: 'Incomplete registration certificate',
-      internal_comment: 'Checked registry database',
+      decision: 'approved',
+      review_note: validReviewNote,
+    });
+    expect(host.textContent).toContain('Decision "approved" submitted successfully.');
+  });
+
+  it('submits rejection with decision "rejected" and review_note', () => {
+    verificationServiceMock.submitDecision.mockReturnValue(
+      of({
+        data: {
+          application_id: 101,
+          verification_status: 'rejected',
+          review_note: 'Incomplete registration certificate provided.',
+        },
+      })
+    );
+
+    clickButtonByText('Reject');
+    setReviewNote('Incomplete registration certificate provided.');
+    clickButtonByText('Review & Confirm');
+    clickButtonByText('Confirm Decision');
+
+    expect(verificationServiceMock.submitDecision).toHaveBeenCalledWith('101', {
+      decision: 'rejected',
+      review_note: 'Incomplete registration certificate provided.',
     });
   });
 
-  it('submits a correction request with feedback', () => {
+  it('submits a correction request with decision "request_corrections" and review_note', () => {
     verificationServiceMock.submitDecision.mockReturnValue(
-      of({ ...mockApplication, status: 'corrections_requested' })
+      of({
+        data: {
+          application_id: 101,
+          verification_status: 'request_corrections',
+          review_note: 'Please upload a clearer tax registration document.',
+        },
+      })
     );
 
-    const host = fixture.nativeElement as HTMLElement;
-    const correctionBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Request Corrections')
-    );
-    correctionBtn?.click();
-    fixture.detectChanges();
-
-    const textarea = host.querySelector('#decision-reason') as HTMLTextAreaElement;
-    textarea.value = 'Please upload a clearer tax document';
-    textarea.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-
-    const reviewBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Review & Confirm')
-    );
-    reviewBtn?.click();
-    fixture.detectChanges();
-
-    const confirmBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Confirm Decision')
-    );
-    confirmBtn?.click();
-    fixture.detectChanges();
+    clickButtonByText('Request Corrections');
+    setReviewNote('Please upload a clearer tax registration document.');
+    clickButtonByText('Review & Confirm');
+    clickButtonByText('Confirm Decision');
 
     expect(verificationServiceMock.submitDecision).toHaveBeenCalledWith('101', {
-      action: 'request_corrections',
-      reason: 'Please upload a clearer tax document',
-      internal_comment: undefined,
+      decision: 'request_corrections',
+      review_note: 'Please upload a clearer tax registration document.',
     });
   });
 
-  it('resets confirmation if action or reason changes before final submission', () => {
+  it('resets confirmation if action or review_note changes before final submission', () => {
     const host = fixture.nativeElement as HTMLElement;
-    const reviewBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Review & Confirm')
-    );
-    reviewBtn?.click();
-    fixture.detectChanges();
+    setReviewNote(validReviewNote);
+    clickButtonByText('Review & Confirm');
 
     expect(host.querySelector('[aria-label="Confirm decision"]')).not.toBeNull();
 
-    const textarea = host.querySelector('#decision-reason') as HTMLTextAreaElement;
-    textarea.value = 'Updated note';
-    textarea.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-
+    setReviewNote('Updated review note with more than ten characters.');
     expect(host.querySelector('[aria-label="Confirm decision"]')).toBeNull();
   });
 
   it('prevents duplicate submissions while a request is in flight', () => {
-    const pending$ = new Subject<OrganizationApplicationDetail>();
+    const pending$ = new Subject<DecisionResponsePayload>();
     verificationServiceMock.submitDecision.mockReturnValue(pending$.asObservable());
 
-    const host = fixture.nativeElement as HTMLElement;
-    const reviewBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Review & Confirm')
-    );
-    reviewBtn?.click();
-    fixture.detectChanges();
-
-    const confirmBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Confirm Decision')
-    );
-    confirmBtn?.click();
-    fixture.detectChanges();
-
-    confirmBtn?.click();
-    fixture.detectChanges();
+    setReviewNote(validReviewNote);
+    clickButtonByText('Review & Confirm');
+    clickButtonByText('Confirm Decision');
+    clickButtonByText('Confirm Decision');
 
     expect(verificationServiceMock.submitDecision).toHaveBeenCalledTimes(1);
+  });
+
+  it('handles 403 authorization errors when submitting a decision', () => {
+    verificationServiceMock.submitDecision.mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 403,
+            error: {
+              error: {
+                code: 'FORBIDDEN',
+                message: 'Admin role is required to submit decisions.',
+              },
+            },
+          })
+      )
+    );
+
+    const host = fixture.nativeElement as HTMLElement;
+    setReviewNote(validReviewNote);
+    clickButtonByText('Review & Confirm');
+    clickButtonByText('Confirm Decision');
+
+    const alertEl = host.querySelector('[role="alert"]');
+    expect(alertEl?.textContent).toContain(
+      'Admin role is required to submit decisions. (FORBIDDEN)'
+    );
   });
 
   it('handles 409 conflicting decision responses with structured error feedback', () => {
@@ -232,17 +243,9 @@ describe('OrganizationDecision', () => {
     );
 
     const host = fixture.nativeElement as HTMLElement;
-    const reviewBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Review & Confirm')
-    );
-    reviewBtn?.click();
-    fixture.detectChanges();
-
-    const confirmBtn = Array.from(host.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Confirm Decision')
-    );
-    confirmBtn?.click();
-    fixture.detectChanges();
+    setReviewNote(validReviewNote);
+    clickButtonByText('Review & Confirm');
+    clickButtonByText('Confirm Decision');
 
     const alertEl = host.querySelector('[role="alert"]');
     expect(alertEl?.textContent).toContain(

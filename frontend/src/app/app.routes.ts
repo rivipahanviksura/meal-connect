@@ -1,6 +1,7 @@
 
 import { Routes } from '@angular/router';
-import { navigationAccessGuard } from './guards/navigation-access.guard';
+
+import { navigationAccessGuard } from './core/guards/navigation-access.guard';
 
 export const routes: Routes = [
   {
@@ -10,6 +11,7 @@ export const routes: Routes = [
       import('./features/home/home').then(m => m.Home)
   },
   {
+    
     path: 'login',
     title: 'Login | Meal Connect',
     loadComponent: () =>

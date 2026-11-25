@@ -3,6 +3,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
+import { finalize, of, switchMap } from 'rxjs';
 import { ApplicationSummaryItem } from '../../core/models/navigation-account';
 import { OrganizationVerificationService } from '../../core/services/organization-verification.service';
 
@@ -23,6 +24,8 @@ export class OrganizationFeedback implements OnInit {
   protected readonly application = signal<ApplicationSummaryItem | null>(null);
 
   protected readonly correctionNote = signal('');
+  protected readonly documentType = signal('supporting_document');
+  protected readonly selectedFile = signal<File | null>(null);
   protected readonly selectedDocumentName = signal('');
 
   ngOnInit(): void {
@@ -52,35 +55,60 @@ export class OrganizationFeedback implements OnInit {
       return;
     }
 
+    const file = this.selectedFile();
+    const docType = this.documentType().trim() || 'supporting_document';
+    const note = this.correctionNote().trim();
+
     this.submittingResubmit.set(true);
     this.feedbackMessage.set(null);
     this.errorMessage.set(null);
     this.fieldErrors.set({});
 
-    this.verificationService.resubmitApplication(app.application_id).subscribe({
-      next: () => {
-        this.submittingResubmit.set(false);
-        this.correctionNote.set('');
-        this.selectedDocumentName.set('');
-        this.feedbackMessage.set('Application resubmitted for verification.');
-        this.loadStatus();
-      },
-      error: (err: unknown) => {
-        this.submittingResubmit.set(false);
-        this.applyApiError(err, 'Unable to resubmit application.');
-      },
-    });
+    const uploadStep$ = file
+      ? this.verificationService.uploadDocument(app.application_id, file, docType)
+      : of(null);
+
+    uploadStep$
+      .pipe(
+        switchMap(() =>
+          this.verificationService.resubmitApplication(app.application_id, note)
+        ),
+        finalize(() => this.submittingResubmit.set(false))
+      )
+      .subscribe({
+        next: () => {
+          this.correctionNote.set('');
+          this.selectedFile.set(null);
+          this.selectedDocumentName.set('');
+          this.feedbackMessage.set(
+            file
+              ? 'Document uploaded and application resubmitted for verification.'
+              : 'Application resubmitted for verification.'
+          );
+          this.loadStatus();
+        },
+        error: (err: unknown) => {
+          this.applyApiError(
+            err,
+            file
+              ? 'Failed to upload document or resubmit application.'
+              : 'Unable to resubmit application.'
+          );
+        },
+      });
   }
 
   protected onDocumentFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement | null;
-    const file = input?.files?.[0];
+    const file = input?.files?.[0] ?? null;
+    this.selectedFile.set(file);
     this.selectedDocumentName.set(file ? file.name : '');
   }
 
   protected canResubmit(status: string | undefined): boolean {
     return (
       status === 'rejected' ||
+      status === 'request_corrections' ||
       status === 'corrections_requested' ||
       status === 'needs_correction' ||
       status === 'correction_requested'
