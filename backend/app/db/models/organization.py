@@ -1,10 +1,10 @@
 
 import enum
-from sqlalchemy.dialects.postgresql import JSONB
 from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -14,9 +14,9 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
-    Date,
-    JSON,
+    text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -52,6 +52,18 @@ class MemberStatus(str, enum.Enum):
 class Organization(Base):
     __tablename__ = "organizations"
 
+    __table_args__ = (
+        Index(
+            "uq_organizations_registration_identity",
+            "type",
+            "registration_authority",
+            "registration_number",
+            unique=True,
+            postgresql_where=text("registration_number IS NOT NULL"),
+            postgresql_nulls_not_distinct=True,
+        ),
+    )
+
     organization_id: Mapped[int] = mapped_column(
         BigInteger, Identity(), primary_key=True
     )
@@ -66,7 +78,7 @@ class Organization(Base):
     )
 
     registration_number: Mapped[str | None] = mapped_column(
-        String(100), unique=True
+        String(100), nullable=True
     )
 
     contact_email: Mapped[str] = mapped_column(
@@ -113,10 +125,6 @@ class Organization(Base):
         String(255), nullable=True
     )
 
-    operational_details: Mapped[dict | None] = mapped_column(
-        JSON, nullable=True
-    )
-
     submitted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -151,6 +159,7 @@ class Organization(Base):
         JSONB, nullable=True
     )
 
+
 class OrganizationMembership(Base):
     __tablename__ = "organization_memberships"
 
@@ -164,7 +173,10 @@ class OrganizationMembership(Base):
             "organization_id",
             name="uq_membership_single_account_per_org",
         ),
-        Index("ix_membership_user_id", "user_id"),
+        UniqueConstraint(
+            "user_id",
+            name="uq_membership_single_org_per_user",
+        ),
     )
 
     membership_id: Mapped[int] = mapped_column(
