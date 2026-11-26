@@ -67,6 +67,32 @@ class DonationCreate(BaseModel):
 
         return self
 
+class DonationUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    title: str | None = None
+    category: str | None = None
+    description: str | None = None
+    total_quantity: Decimal | None = None
+    quantity_unit: str | None = None
+    allergen_info: str | None = None
+    storage_instructions: str | None = None
+    prepared_at: AwareDatetime | None = None
+    available_from: AwareDatetime | None = None
+    pickup_deadline: AwareDatetime | None = None
+    pickup_address: str | None = None
+    pickup_city: str | None = None
+
+    @field_validator("prepared_at", "available_from", "pickup_deadline", mode="before")
+    @classmethod
+    def parse_iso_datetime(cls, value: object) -> datetime | None:
+        return DonationCreate.parse_iso_datetime(value)
+
+
+class DonationCancellation(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    reason: str | None = Field(default=None, max_length=1000)
 
 class DonationResponseData(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -205,3 +231,61 @@ class DonationPagination(BaseModel):
 class DonationListResponse(BaseModel):
     data: list[DonationListItem]
     pagination: DonationPagination
+
+class DonationDetailData(BaseModel):
+    """Donation details returned to authorized users."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    donation_id: int
+    organization_id: int
+
+    title: str
+    category: str
+    description: str | None
+
+    total_quantity: Decimal
+    allocated_quantity: Decimal
+    quantity_unit: str
+
+    allergen_info: str | None
+    storage_instructions: str | None
+
+    prepared_at: datetime | None
+    available_from: datetime
+    pickup_deadline: datetime
+
+    pickup_address: str
+    pickup_city: str
+
+    status: DonationStatus
+    created_at: datetime
+    updated_at: datetime
+
+    @computed_field
+    @property
+    def remaining_quantity(self) -> Decimal:
+        return self.total_quantity - self.allocated_quantity
+
+    @field_serializer(
+        "prepared_at",
+        "available_from",
+        "pickup_deadline",
+        "created_at",
+        "updated_at",
+        when_used="json",
+    )
+    def serialize_utc(
+        self, value: datetime | None
+    ) -> datetime | None:
+        if value is None:
+            return None
+
+        if value.utcoffset() is None:
+            value = value.replace(tzinfo=timezone.utc)
+
+        return value.astimezone(timezone.utc)
+
+
+class DonationDetailResponse(BaseModel):
+    data: DonationDetailData

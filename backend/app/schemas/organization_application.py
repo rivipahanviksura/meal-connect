@@ -1,3 +1,4 @@
+
 from datetime import date
 from typing import Annotated, Literal
 
@@ -5,49 +6,97 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class ApplicationDetails(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
 
     name: str = Field(min_length=1, max_length=180)
-    registration_number: str | None = Field(default=None, min_length=1, max_length=100)
+    registration_number: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+    )
     contact_email: Annotated[EmailStr, Field(max_length=255)]
-    contact_phone: str | None = Field(default=None, min_length=1, max_length=25)
+    contact_phone: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=25,
+    )
     address_line: str = Field(min_length=1, max_length=255)
     city: str = Field(min_length=1, max_length=120)
-    district: str | None = Field(default=None, min_length=1, max_length=120)
+    district: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+    )
     representative_name: str = Field(min_length=1, max_length=180)
-    representative_designation: str | None = Field(default=None, min_length=1, max_length=100)
+    representative_designation: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+    )
 
 
 class BusinessApplication(ApplicationDetails):
     organization_type: Literal["business"]
     business_subtype: Literal["restaurant", "bakery"]
-    pickup_location: str | None = Field(default=None, min_length=1, max_length=255)
+    pickup_location: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+    )
 
 
 class NgoOperationalDetails(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
 
-    operating_area: str | None = Field(default=None, min_length=1, max_length=255)
-    distribution_area: str | None = Field(default=None, min_length=1, max_length=255)
-    operational_capability: str | None = Field(default=None, min_length=1, max_length=255)
+    operating_area: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+    )
+    distribution_area: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+    )
+    operational_capability: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+    )
 
 
 class NgoApplication(ApplicationDetails):
     organization_type: Literal["ngo"]
-    registration_authority: str | None = Field(default=None, min_length=1, max_length=180)
+    registration_authority: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=180,
+    )
     registration_date: date | None = None
     operational_details: NgoOperationalDetails | None = None
 
     @field_validator("registration_date")
     @classmethod
-    def validate_registration_date(cls, value: date | None) -> date | None:
+    def validate_registration_date(
+        cls,
+        value: date | None,
+    ) -> date | None:
         if value is not None and value > date.today():
-            raise ValueError("Registration date cannot be in the future")
+            raise ValueError(
+                "Registration date cannot be in the future"
+            )
         return value
 
 
 ApplicationRequest = Annotated[
-    BusinessApplication | NgoApplication, Field(discriminator="organization_type")
+    BusinessApplication | NgoApplication,
+    Field(discriminator="organization_type"),
 ]
 
 
@@ -65,9 +114,16 @@ class ApplicationSummary(BaseModel):
     application_id: int
     organization_id: int
     name: str
-    status: Literal["draft", "pending_verification", "verified", "rejected", "suspended"]
+    status: Literal[
+        "draft",
+        "pending_verification",
+        "verified",
+        "rejected",
+        "suspended",
+    ]
     review_note: str | None = None
     draft_details: ApplicationRequest | None = None
+
 
 class ApplicationPagination(BaseModel):
     page: Literal[1] = 1
@@ -81,7 +137,14 @@ class ApplicationListResponse(BaseModel):
     pagination: ApplicationPagination
 
 
-DocumentType = Literal["registration_certificate", "representative_authorization", "supporting_document"]
+# MEAL-13: Supported organization verification documents.
+DocumentType = Literal[
+    "registration_certificate",
+    "representative_authorization",
+    "supporting_document",
+    "food_premises_certificate",
+    "trade_licence",
+]
 
 
 class ApplicationDocument(BaseModel):
