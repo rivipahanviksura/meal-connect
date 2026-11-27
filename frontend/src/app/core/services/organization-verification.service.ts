@@ -2,6 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { Api } from './api';
 import {
+  BackendDocumentType,
   DecisionRequestPayload,
   DecisionResponsePayload,
   MyApplicationsResponse,
@@ -22,7 +23,7 @@ export class OrganizationVerificationService {
   uploadDocument(
     applicationId: number | string,
     file: File,
-    documentType: string
+    documentType: BackendDocumentType
   ): Observable<unknown> {
     const formData = new FormData();
     formData.append('file', file);
@@ -35,15 +36,11 @@ export class OrganizationVerificationService {
   }
 
   resubmitApplication(
-    applicationId: number | string,
-    correctionNote?: string
+    applicationId: number | string
   ): Observable<unknown> {
-    const trimmedNote = correctionNote?.trim();
-    const body = trimmedNote ? { correction_note: trimmedNote } : {};
-
     return this.api.post(
       `/organization-applications/${applicationId}/resubmit`,
-      body
+      {}
     );
   }
 

@@ -30,10 +30,24 @@ export type NavigationSession =
 
 
 
-
-
 export type DecisionAction = 'approve' | 'reject' | 'request_corrections';
 export type AdminDecisionValue = 'approved' | 'rejected' | 'request_corrections';
+
+export type BackendDocumentType =
+  | 'registration_certificate'
+  | 'representative_authorization'
+  | 'supporting_document';
+
+export interface DocumentTypeOption {
+  value: BackendDocumentType;
+  label: string;
+}
+
+export const DOCUMENT_TYPE_OPTIONS: DocumentTypeOption[] = [
+  { value: 'registration_certificate', label: 'Registration Certificate' },
+  { value: 'representative_authorization', label: 'Representative Authorization' },
+  { value: 'supporting_document', label: 'Supporting Document' },
+];
 
 export interface VerificationDocument {
   document_id?: number | string;
@@ -42,7 +56,7 @@ export interface VerificationDocument {
   name?: string;
   file_name?: string;
   review_status?: string;
-  document_type?: string;
+  document_type?: BackendDocumentType | string;
   type?: string;
   status?: string;
   note?: string;
@@ -52,6 +66,12 @@ export interface VerificationDocument {
 
 export interface StatusHistoryItem {
   id?: number | string;
+  new_status?: string;
+  change_reason?: string | null;
+  changed_by_name?: string | null;
+  changed_at?: string | null;
+
+  // Fallback / legacy fields
   status?: string;
   verification_status?: string;
   action?: string;
@@ -62,7 +82,6 @@ export interface StatusHistoryItem {
   internal_note?: string | null;
   decided_by?: string | null;
   actor?: string | null;
-  changed_at?: string | null;
   reviewed_at?: string | null;
   created_at?: string | null;
 }
@@ -119,10 +138,6 @@ export interface DecisionResponsePayload {
     message?: string;
   };
   message?: string;
-}
-
-export interface ResubmitRequestPayload {
-  correction_note?: string;
 }
 
 export interface ApiErrorBody {

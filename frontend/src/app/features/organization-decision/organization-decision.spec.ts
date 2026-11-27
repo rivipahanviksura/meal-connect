@@ -97,6 +97,32 @@ describe('OrganizationDecision', () => {
     expect(host.textContent).toContain('No status history recorded yet.');
   });
 
+  it('renders backend status history fields (new_status, change_reason, changed_by_name, changed_at)', () => {
+    verificationServiceMock.getApplicationById.mockReturnValue(
+      of({
+        ...mockApplication,
+        status_history: [
+          {
+            id: 501,
+            new_status: 'request_corrections',
+            change_reason: 'Please attach official NGO certificate.',
+            changed_by_name: 'Admin User',
+            changed_at: '2026-11-27T10:30:00Z',
+          },
+        ],
+      })
+    );
+
+    const localFixture = TestBed.createComponent(OrganizationDecision);
+    localFixture.detectChanges();
+
+    const host = localFixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('request_corrections');
+    expect(host.textContent).toContain('Please attach official NGO certificate.');
+    expect(host.textContent).toContain('Admin User');
+    expect(host.textContent).toContain('2026-11-27T10:30:00Z');
+  });
+
   it('requires at least 10 characters for review_note even when approving', () => {
     const host = fixture.nativeElement as HTMLElement;
     clickButtonByText('Approve');

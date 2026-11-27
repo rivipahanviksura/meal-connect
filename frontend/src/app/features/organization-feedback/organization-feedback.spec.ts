@@ -61,11 +61,7 @@ describe('OrganizationFeedback', () => {
     expect(host.textContent).toContain(
       'Protected organization features remain locked until verification is approved.'
     );
-
-    const noteTextarea = host.querySelector('#correction-note') as HTMLTextAreaElement;
-    noteTextarea.value = 'Updated license details';
-    noteTextarea.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
+    expect(host.querySelector('#correction-note')).toBeNull();
 
     const resubmitBtn = Array.from(host.querySelectorAll('button')).find((b) =>
       b.textContent?.includes('Resubmit Application')
@@ -74,14 +70,11 @@ describe('OrganizationFeedback', () => {
     fixture.detectChanges();
 
     expect(verificationServiceMock.uploadDocument).not.toHaveBeenCalled();
-    expect(verificationServiceMock.resubmitApplication).toHaveBeenCalledWith(
-      22,
-      'Updated license details'
-    );
+    expect(verificationServiceMock.resubmitApplication).toHaveBeenCalledWith(22);
     expect(host.textContent).toContain('Application resubmitted for verification.');
   });
 
-  it('uploads selected document before resubmitting application', () => {
+  it('uploads selected document with constrained document type before resubmitting application', () => {
     const callOrder: string[] = [];
 
     verificationServiceMock.getMyApplications.mockReturnValue(
@@ -110,6 +103,20 @@ describe('OrganizationFeedback', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
+    const typeSelect = host.querySelector(
+      '#correction-document-type'
+    ) as HTMLSelectElement;
+    const optionValues = Array.from(typeSelect.options).map((o) => o.value);
+    expect(optionValues).toEqual([
+      'registration_certificate',
+      'representative_authorization',
+      'supporting_document',
+    ]);
+
+    typeSelect.value = 'registration_certificate';
+    typeSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
     const fileInput = host.querySelector('#correction-document') as HTMLInputElement;
     const file = new File(['dummy content'], 'business-license.pdf', {
       type: 'application/pdf',
@@ -131,9 +138,9 @@ describe('OrganizationFeedback', () => {
     expect(verificationServiceMock.uploadDocument).toHaveBeenCalledWith(
       22,
       file,
-      'supporting_document'
+      'registration_certificate'
     );
-    expect(verificationServiceMock.resubmitApplication).toHaveBeenCalledWith(22, '');
+    expect(verificationServiceMock.resubmitApplication).toHaveBeenCalledWith(22);
     expect(callOrder).toEqual(['uploadDocument', 'resubmitApplication']);
     expect(host.textContent).toContain(
       'Document uploaded and application resubmitted for verification.'

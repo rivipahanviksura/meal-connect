@@ -46,13 +46,16 @@
 
           <div>
             <label for="correction-document-type">Document Type</label>
-            <input
+            <select
               id="correction-document-type"
-              type="text"
               [ngModel]="documentType()"
               (ngModelChange)="documentType.set($event)"
               [disabled]="submittingResubmit()"
-            />
+            >
+              @for (option of documentTypeOptions; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
           </div>
 
           <div>
@@ -66,17 +69,6 @@
             @if (selectedDocumentName()) {
               <p>Selected file: {{ selectedDocumentName() }}</p>
             }
-          </div>
-
-          <div>
-            <label for="correction-note">Correction Details / Response</label>
-            <textarea
-              id="correction-note"
-              rows="3"
-              [ngModel]="correctionNote()"
-              (ngModelChange)="correctionNote.set($event)"
-              [disabled]="submittingResubmit()"
-            ></textarea>
           </div>
 
           <button

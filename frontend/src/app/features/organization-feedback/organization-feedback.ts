@@ -4,8 +4,16 @@ import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { finalize, of, switchMap } from 'rxjs';
-import { ApplicationSummaryItem } from '../../core/models/navigation-account';
+import {
+  ApplicationSummaryItem,
+  BackendDocumentType,
+  DOCUMENT_TYPE_OPTIONS,
+} from '../../core/models/navigation-account';
 import { OrganizationVerificationService } from '../../core/services/organization-verification.service';
+
+const VALID_DOCUMENT_TYPES = new Set<BackendDocumentType>(
+  DOCUMENT_TYPE_OPTIONS.map((opt) => opt.value)
+);
 
 @Component({
   selector: 'app-organization-feedback',
@@ -23,8 +31,8 @@ export class OrganizationFeedback implements OnInit {
   protected readonly feedbackMessage = signal<string | null>(null);
   protected readonly application = signal<ApplicationSummaryItem | null>(null);
 
-  protected readonly correctionNote = signal('');
-  protected readonly documentType = signal('supporting_document');
+  protected readonly documentTypeOptions = DOCUMENT_TYPE_OPTIONS;
+  protected readonly documentType = signal<BackendDocumentType>('supporting_document');
   protected readonly selectedFile = signal<File | null>(null);
   protected readonly selectedDocumentName = signal('');
 
@@ -56,8 +64,14 @@ export class OrganizationFeedback implements OnInit {
     }
 
     const file = this.selectedFile();
-    const docType = this.documentType().trim() || 'supporting_document';
-    const note = this.correctionNote().trim();
+    const docType = this.documentType();
+
+    if (file && !VALID_DOCUMENT_TYPES.has(docType)) {
+      this.errorMessage.set(
+        'Please select a valid document type before uploading.'
+      );
+      return;
+    }
 
     this.submittingResubmit.set(true);
     this.feedbackMessage.set(null);
@@ -71,13 +85,12 @@ export class OrganizationFeedback implements OnInit {
     uploadStep$
       .pipe(
         switchMap(() =>
-          this.verificationService.resubmitApplication(app.application_id, note)
+          this.verificationService.resubmitApplication(app.application_id)
         ),
         finalize(() => this.submittingResubmit.set(false))
       )
       .subscribe({
         next: () => {
-          this.correctionNote.set('');
           this.selectedFile.set(null);
           this.selectedDocumentName.set('');
           this.feedbackMessage.set(
@@ -133,7 +146,7 @@ export class OrganizationFeedback implements OnInit {
     const errObj =
       payload && typeof payload === 'object'
         ? ((payload as { error?: Record<string, unknown> }).error ??
-            (payload as Record<string, unknown>))
+          (payload as Record<string, unknown>))
         : null;
 
     const code = typeof errObj?.['code'] === 'string' ? errObj['code'] : undefined;
