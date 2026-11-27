@@ -1,0 +1,88 @@
+<section aria-labelledby="feedback-heading">
+  <h2 id="feedback-heading">Verification Status &amp; Feedback</h2>
+
+  @if (loading()) {
+    <p role="status">Loading verification status...</p>
+  } @else if (errorMessage()) {
+    <div role="alert">
+      <p>{{ errorMessage() }}</p>
+      @if (fieldErrors() | keyvalue; as entries) {
+        @if (entries.length > 0) {
+          <ul>
+            @for (entry of entries; track entry.key) {
+              <li>
+                <strong>{{ entry.key }}:</strong> {{ entry.value.join(', ') }}
+              </li>
+            }
+          </ul>
+        }
+      }
+      <button type="button" (click)="loadStatus()">Retry</button>
+    </div>
+  }
+
+  @if (feedbackMessage()) {
+    <p role="status">{{ feedbackMessage() }}</p>
+  }
+
+  @if (!loading() && application(); as app) {
+    @let currentStatus = app.verification_status || app.status;
+    <div>
+      <p><strong>Organization:</strong> {{ app.organization_name || app.name }}</p>
+      <p><strong>Current Status:</strong> {{ currentStatus }}</p>
+
+      @if (currentStatus === 'verified' || currentStatus === 'approved') {
+        <p role="status">
+          Your organization is verified. Protected features are now available.
+        </p>
+      } @else {
+        <p>Protected organization features remain locked until verification is approved.</p>
+      }
+
+      @if (canResubmit(currentStatus)) {
+        <div>
+          <h3>Reviewer Feedback</h3>
+          <p>{{ app.review_note || 'Please address the requested corrections before resubmitting.' }}</p>
+
+          <div>
+            <label for="correction-document-type">Document Type</label>
+            <select
+              id="correction-document-type"
+              [ngModel]="documentType()"
+              (ngModelChange)="documentType.set($event)"
+              [disabled]="submittingResubmit()"
+            >
+              @for (option of documentTypeOptions; track option.value) {
+                <option [value]="option.value">{{ option.label }}</option>
+              }
+            </select>
+          </div>
+
+          <div>
+            <label for="correction-document">Updated Supporting Document (Optional)</label>
+            <input
+              id="correction-document"
+              type="file"
+              (change)="onDocumentFileSelected($event)"
+              [disabled]="submittingResubmit()"
+            />
+            @if (selectedDocumentName()) {
+              <p>Selected file: {{ selectedDocumentName() }}</p>
+            }
+          </div>
+
+          <button
+            type="button"
+            [disabled]="submittingResubmit()"
+            (click)="onResubmit()"
+          >
+            {{ submittingResubmit() ? 'Resubmitting...' : 'Resubmit Application' }}
+          </button>
+          <a routerLink="/">Back to Home</a>
+        </div>
+      }
+    </div>
+  } @else if (!loading() && !errorMessage()) {
+    <p>No organization application found yet.</p>
+  }
+</section>

@@ -1,6 +1,8 @@
 
 import { Routes } from '@angular/router';
 
+import { navigationAccessGuard } from './core/guards/navigation-access.guard';
+
 export const routes: Routes = [
   {
     path: '',
@@ -9,6 +11,7 @@ export const routes: Routes = [
       import('./features/home/home').then(m => m.Home)
   },
   {
+
     path: 'login',
     title: 'Login | Meal Connect',
     loadComponent: () =>
@@ -31,8 +34,27 @@ export const routes: Routes = [
       import('./shared/unauthorized/unauthorized')
         .then(m => m.Unauthorized)
   },
+
+  {
+    path: 'organization-feedback',
+    loadComponent: () =>
+      import('./features/organization-feedback/organization-feedback').then(
+        (m) => m.OrganizationFeedback
+      ),
+  },
+  {
+    path: 'admin/organization-verification/:id',
+    canActivate: [navigationAccessGuard(['admin'])],
+    loadComponent: () =>
+      import('./features/organization-decision/organization-decision').then(
+        (m) => m.OrganizationDecision
+      ),
+  },
+
   {
     path: '**',
     redirectTo: ''
   }
+
+
 ];

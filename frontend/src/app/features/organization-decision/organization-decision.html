@@ -1,0 +1,142 @@
+<section aria-labelledby="decision-heading">
+  <h2 id="decision-heading">Organization Verification Decision</h2>
+
+  @if (loading()) {
+    <p role="status">Loading application details...</p>
+  } @else if (errorMessage()) {
+    <div role="alert">
+      <p>{{ errorMessage() }}</p>
+      @if (fieldErrors() | keyvalue; as entries) {
+        @if (entries.length > 0) {
+          <ul>
+            @for (entry of entries; track entry.key) {
+              <li>
+                <strong>{{ entry.key }}:</strong> {{ entry.value.join(', ') }}
+              </li>
+            }
+          </ul>
+        }
+      }
+      <button type="button" (click)="loadApplication()">Retry</button>
+    </div>
+  }
+
+  @if (successMessage()) {
+    <p role="status">{{ successMessage() }}</p>
+  }
+
+  @if (!loading() && application(); as app) {
+    <div>
+      <p><strong>Organization:</strong> {{ app.organization_name || app.name }}</p>
+      <p><strong>Type:</strong> {{ app.organization_type || 'N/A' }}</p>
+      <p><strong>Current Status:</strong> {{ app.verification_status }}</p>
+
+      @if (app.documents.length) {
+        <h3>Submitted Documents</h3>
+        <ul>
+          @for (doc of app.documents; track doc.document_id ?? doc.id) {
+            <li>
+              {{ doc.original_filename || doc.name }}
+              @if (doc.review_status || doc.status) { — {{ doc.review_status || doc.status }} }
+              @if (doc.review_note || doc.note) { ({{ doc.review_note || doc.note }}) }
+            </li>
+          }
+        </ul>
+      }
+
+      <h3>Decision Action</h3>
+      <div>
+        <button type="button" [disabled]="submitting()" (click)="onSelectAction('approve')">
+          Approve
+        </button>
+        <button type="button" [disabled]="submitting()" (click)="onSelectAction('reject')">
+          Reject
+        </button>
+        <button
+          type="button"
+          [disabled]="submitting()"
+          (click)="onSelectAction('request_corrections')"
+        >
+          Request Corrections
+        </button>
+      </div>
+
+      <p><strong>Selected Decision:</strong> {{ mapActionToDecision(selectedAction()) }}</p>
+
+      <div>
+        <label for="decision-review-note">
+          Review Note (Required, min 10 characters for all decisions)
+        </label>
+        <textarea
+          id="decision-review-note"
+          rows="3"
+          minlength="10"
+          [ngModel]="reviewNote()"
+          (ngModelChange)="onReviewNoteChange($event)"
+          [disabled]="submitting()"
+        ></textarea>
+      </div>
+
+      @if (!confirmRequested()) {
+        <button type="button" [disabled]="submitting()" (click)="requestConfirmation()">
+          Review &amp; Confirm
+        </button>
+      } @else {
+        <div role="region" aria-label="Confirm decision">
+          <p>
+            Confirm decision <strong>{{ mapActionToDecision(selectedAction()) }}</strong> for
+            <strong>{{ app.organization_name || app.name }}</strong>?
+          </p>
+          @if (reviewNote().trim()) {
+            <p><strong>Review Note:</strong> {{ reviewNote().trim() }}</p>
+          }
+          <button
+            type="button"
+            [disabled]="submitting()"
+            (click)="confirmSubmitDecision()"
+          >
+            {{ submitting() ? 'Submitting...' : 'Confirm Decision' }}
+          </button>
+          <button
+            type="button"
+            [disabled]="submitting()"
+            (click)="cancelConfirmation()"
+          >
+            Cancel
+          </button>
+        </div>
+      }
+
+      <h3>Status History</h3>
+      @if (app.status_history.length) {
+        <ul>
+          @for (item of app.status_history; track item.id ?? $index) {
+            <li>
+              <strong>{{
+                  item.new_status ||
+                  item.verification_status ||
+                  item.status ||
+                  item.decision ||
+                  item.action
+                }}</strong>
+              @if (item.changed_at || item.reviewed_at || item.created_at) {
+                — {{ item.changed_at || item.reviewed_at || item.created_at }}
+              }
+              @if (item.changed_by_name || item.decided_by || item.actor) {
+                by {{ item.changed_by_name || item.decided_by || item.actor }}
+              }
+              @if (item.change_reason || item.review_note || item.reason) {
+                <div>Reason: {{ item.change_reason || item.review_note || item.reason }}</div>
+              }
+              @if (item.internal_comment || item.internal_note) {
+                <div>Internal note: {{ item.internal_comment || item.internal_note }}</div>
+              }
+            </li>
+          }
+        </ul>
+      } @else {
+        <p>No status history recorded yet.</p>
+      }
+    </div>
+  }
+</section>
