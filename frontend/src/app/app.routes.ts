@@ -11,7 +11,7 @@ export const routes: Routes = [
       import('./features/home/home').then(m => m.Home)
   },
   {
-    
+
     path: 'login',
     title: 'Login | Meal Connect',
     loadComponent: () =>
