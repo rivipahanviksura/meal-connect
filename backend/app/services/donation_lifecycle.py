@@ -167,3 +167,86 @@ def cancel_donation(
         raise
 
     return donation
+
+def publish_donation(
+    db: Session,
+    donation_id: int,
+    organization_id: int,
+    user_id: int,
+) -> Donation:
+    try:
+        donation = _lock_owned_donation(
+            db, donation_id, organization_id
+        )
+
+        if donation.status != DonationStatus.draft:
+            raise APIException(
+                409,
+                "INVALID_STATE_TRANSITION",
+                "Only draft donations can be published.",
+            )
+
+        now = datetime.now(timezone.utc)
+
+        if donation.pickup_deadline <= now:
+            raise APIException(
+                409,
+                "DONATION_EXPIRED",
+                "An expired donation cannot be published.",
+            )
+
+        existing = {
+            field: getattr(donation, field)
+            for field in DonationUpdate.model_fields
+        }
+
+        try:
+            DonationCreate.model_validate(
+                {
+                    **existing,
+                    "status": "available",
+                }
+            )
+        except ValidationError as exc:
+            fields = [
+                {
+                    "field": ".".join(
+                        map(str, error["loc"])
+                    ) or "request",
+                    "message": error["msg"],
+                    "code": error["type"],
+                }
+                for error in exc.errors(
+                    include_input=False,
+                    include_context=False,
+                )
+            ]
+
+            raise APIException(
+                422,
+                "VALIDATION_ERROR",
+                "Please correct the invalid request fields.",
+                fields,
+            ) from None
+
+        db.add(
+            StatusHistory(
+                entity_type="donation",
+                entity_id=donation_id,
+                old_status=donation.status.value,
+                new_status=DonationStatus.available.value,
+                changed_by_user_id=user_id,
+                change_reason="Donation published.",
+            )
+        )
+
+        donation.status = DonationStatus.available
+        donation.updated_at = now
+
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
+
+    return donation

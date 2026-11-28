@@ -21,7 +21,7 @@ from app.schemas.donation import (
 )
 from app.services.donation_browse_service import browse_available_donations
 from app.services.donation_service import create_donation
-from app.services.donation_lifecycle import cancel_donation, update_donation
+from app.services.donation_lifecycle import cancel_donation, update_donation, publish_donation
 from app.services.donation_detail_service import get_donation_detail
 
 router = APIRouter(prefix="/donations", tags=["Donations"])
@@ -117,5 +117,29 @@ def cancel_donation_listing(
             organization.organization_id,
             current_user.user_id,
             payload.reason if payload else None,
+        )
+    }
+
+@router.post(
+    "/{donation_id}/publish",
+    response_model=DonationResponse,
+    status_code=status.HTTP_200_OK,
+)
+def publish_donation_listing(
+    donation_id: DonationId,
+    current_user: User = Depends(
+        require_roles(UserRole.business_staff)
+    ),
+    organization: Organization = Depends(
+        get_current_organization
+    ),
+    db: Session = Depends(get_db),
+):
+    return {
+        "data": publish_donation(
+            db=db,
+            donation_id=donation_id,
+            organization_id=organization.organization_id,
+            user_id=current_user.user_id,
         )
     }
