@@ -1,0 +1,257 @@
+<form
+  class="account-form organization-form"
+  [formGroup]="form()"
+  (ngSubmit)="validateRequested.emit()"
+  novalidate>
+
+  <h2>NGO / Charity Organization Details</h2>
+  <p>
+    Provide your registered organization details and information
+    about your food distribution operations.
+  </p>
+
+  <div class="form-grid mc-form-grid">
+    @if (showResumeRepresentativeName()) {
+      <div class="form-field full-width mc-field mc-field--full">
+        <label for="ngoResumeRepresentativeName">Authorized Representative Name *</label>
+        <input
+          id="ngoResumeRepresentativeName"
+          class="mc-field__input"
+          type="text"
+          autocomplete="name"
+          maxlength="180"
+          [formControl]="resumeRepresentativeName()"
+          required
+        />
+        @if (resumeRepresentativeName().touched && resumeRepresentativeName().invalid) {
+          <p class="field-error mc-field__error" role="alert">
+            Enter the authorized representative's name.
+          </p>
+        }
+      </div>
+    }
+
+    <div class="form-field full-width mc-field mc-field--full">
+      <label for="ngoName">Registered NGO Name *</label>
+      <input
+        class="mc-field__input"
+        id="ngoName"
+        type="text"
+        formControlName="ngoName"
+        autocomplete="organization"
+      />
+      @if (form().controls.ngoName.touched && form().controls.ngoName.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter your registered organization name.
+        </p>
+      }
+    </div>
+
+    <div class="form-field mc-field">
+      <label for="ngoRegistrationNumber">NGO Registration Number *</label>
+      <input
+        class="mc-field__input"
+        id="ngoRegistrationNumber"
+        type="text"
+        formControlName="registrationNumber"
+      />
+      @if (form().controls.registrationNumber.touched && form().controls.registrationNumber.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter your NGO registration number.
+        </p>
+      }
+    </div>
+
+    <div class="form-field mc-field">
+      <label for="registrationAuthority">Registration Authority *</label>
+      <input
+        class="mc-field__input"
+        id="registrationAuthority"
+        type="text"
+        formControlName="registrationAuthority"
+      />
+      @if (form().controls.registrationAuthority.touched && form().controls.registrationAuthority.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter the registration authority.
+        </p>
+      }
+    </div>
+
+    <div class="form-field mc-field">
+      <label for="registrationDate">Registration Date *</label>
+      <input
+        class="mc-field__input"
+        id="registrationDate"
+        type="date"
+        formControlName="registrationDate"
+      />
+      @if (form().controls.registrationDate.touched && form().controls.registrationDate.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          @if (form().controls.registrationDate.hasError('required')) {
+            Enter the NGO registration date.
+          } @else if (form().controls.registrationDate.hasError('futureDate')) {
+            Registration date cannot be in the future.
+          } @else {
+            Enter a valid registration date.
+          }
+        </p>
+      }
+    </div>
+
+    <div class="form-field full-width mc-field mc-field--full">
+      <label for="ngoAddress">Registered Address *</label>
+      <textarea
+        class="mc-field__textarea"
+        id="ngoAddress"
+        formControlName="registeredAddress"
+        rows="3"
+      ></textarea>
+      @if (form().controls.registeredAddress.touched && form().controls.registeredAddress.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter the registered NGO address.
+        </p>
+      }
+    </div>
+
+    @let ngoCity = form().controls.city;
+
+    <div class="form-field mc-field">
+      <label class="mc-field__label" for="ngo-city">Registered city *</label>
+      <input
+        class="mc-field__input"
+        id="ngo-city"
+        type="text"
+        [formControl]="ngoCity"
+        autocomplete="address-level2"
+        required
+        [attr.aria-invalid]="ngoCity.touched && ngoCity.invalid ? 'true' : null"
+        [attr.aria-describedby]="ngoCity.touched && ngoCity.invalid ? 'ngo-city-error' : null"
+      />
+      @if (ngoCity.touched && ngoCity.invalid) {
+        <p class="mc-field__error" id="ngo-city-error">
+          {{
+            ngoCity.hasError('required')
+              ? 'Enter the registered city.'
+              : 'Use 255 characters or fewer.'
+          }}
+        </p>
+      }
+    </div>
+
+    <div class="form-field mc-field">
+      <label for="operatingArea">Organization Operating Area *</label>
+      <input
+        class="mc-field__input"
+        id="operatingArea"
+        type="text"
+        formControlName="operatingArea"
+        placeholder="e.g. Western Province"
+      />
+      @if (form().controls.operatingArea.touched && form().controls.operatingArea.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter the areas where your organization operates.
+        </p>
+      }
+    </div>
+
+    <div class="form-field mc-field">
+      <label for="ngoContactEmail">Organization Contact Email *</label>
+      <input
+        class="mc-field__input"
+        id="ngoContactEmail"
+        type="email"
+        formControlName="contactEmail"
+        autocomplete="email"
+      />
+      @if (form().controls.contactEmail.touched && form().controls.contactEmail.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter a valid organization contact email.
+        </p>
+      }
+    </div>
+
+    <div class="form-field mc-field">
+      <label for="ngoContactPhone">Organization Contact Number *</label>
+      <input
+        class="mc-field__input"
+        id="ngoContactPhone"
+        type="tel"
+        formControlName="contactPhone"
+        autocomplete="tel"
+      />
+      @if (form().controls.contactPhone.touched && form().controls.contactPhone.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter your organization contact number.
+        </p>
+      }
+    </div>
+
+    <div class="form-field mc-field">
+      <label for="ngoDesignation">
+        Authorized Representative's Designation *
+      </label>
+      <input
+        class="mc-field__input"
+        id="ngoDesignation"
+        type="text"
+        formControlName="representativeDesignation"
+        placeholder="e.g. Director, Coordinator, Manager"
+      />
+      @if (form().controls.representativeDesignation.touched && form().controls.representativeDesignation.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter a designation of up to 100 characters.
+        </p>
+      }
+    </div>
+
+    <div class="form-field mc-field">
+      <label for="distributionArea">Food Distribution Area *</label>
+      <input
+        class="mc-field__input"
+        id="distributionArea"
+        type="text"
+        formControlName="distributionArea"
+        placeholder="Where food will be distributed"
+      />
+      @if (form().controls.distributionArea.touched && form().controls.distributionArea.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter your food distribution area.
+        </p>
+      }
+    </div>
+
+    <div class="form-field full-width mc-field mc-field--full">
+      <label for="operationalCapability">
+        Food Collection, Transportation and Storage Capability *
+      </label>
+      <textarea
+        class="mc-field__textarea"
+        id="operationalCapability"
+        formControlName="operationalCapability"
+        rows="4"
+        placeholder="Describe your collection, transportation and food storage facilities."
+      ></textarea>
+      @if (form().controls.operationalCapability.touched && form().controls.operationalCapability.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Describe your organization's operational capabilities.
+        </p>
+      }
+    </div>
+  </div>
+
+  <div class="register-actions form-actions">
+    @if (!showResumeRepresentativeName()) {
+      <button
+        type="button"
+        class="secondary-action"
+        (click)="backRequested.emit()"
+      >
+        Back
+      </button>
+    }
+
+    <button type="submit" class="primary-action">
+      Validate Organization Details
+    </button>
+  </div>
+</form>

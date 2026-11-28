@@ -22,6 +22,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import { concatMap, finalize, from, last, map, of, startWith, tap } from 'rxjs';
 import { ApplicationResume } from '../services/application-resume';
+import { BusinessOrganizationForm } from './components/business-organization-form/business-organization-form';
+import { NgoOrganizationForm } from './components/ngo-organization-form/ngo-organization-form';
 
 
 export type AccountType = 'business' | 'ngo';
@@ -94,7 +96,7 @@ const optionalText = () =>
 @Component({
   selector: 'app-register',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, BusinessOrganizationForm, NgoOrganizationForm],
   templateUrl: './register.html',
   styleUrl: './register.scss'
 })
