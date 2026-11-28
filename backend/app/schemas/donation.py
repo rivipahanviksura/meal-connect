@@ -157,7 +157,6 @@ class DonationBrowseQuery(BaseModel):
     )
 
     available_before: AwareDatetime | None = None
-
     # Inclusive upper bound on the collection deadline (not availability start).
     pickup_deadline_before: AwareDatetime | None = None
 
@@ -170,6 +169,18 @@ class DonationBrowseQuery(BaseModel):
 
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
+
+    @field_validator("available_before", "pickup_deadline_before")
+    @classmethod
+    def validate_cutoff_utc_range(cls, value: datetime | None) -> datetime | None:
+        if value is not None:
+            try:
+                value.astimezone(timezone.utc)
+            except (OverflowError, ValueError) as exc:
+                raise ValueError(
+                    "Timestamp is outside the supported UTC datetime range."
+                ) from exc
+        return value
 
     @model_validator(mode="after")
     def validate_pagination_offset(self) -> Self:
@@ -234,3 +245,61 @@ class DonationPagination(BaseModel):
 class DonationListResponse(BaseModel):
     data: list[DonationListItem]
     pagination: DonationPagination
+
+class DonationDetailData(BaseModel):
+    """Donation details returned to authorized users."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    donation_id: int
+    organization_id: int
+
+    title: str
+    category: str
+    description: str | None
+
+    total_quantity: Decimal
+    allocated_quantity: Decimal
+    quantity_unit: str
+
+    allergen_info: str | None
+    storage_instructions: str | None
+
+    prepared_at: datetime | None
+    available_from: datetime
+    pickup_deadline: datetime
+
+    pickup_address: str
+    pickup_city: str
+
+    status: DonationStatus
+    created_at: datetime
+    updated_at: datetime
+
+    @computed_field
+    @property
+    def remaining_quantity(self) -> Decimal:
+        return self.total_quantity - self.allocated_quantity
+
+    @field_serializer(
+        "prepared_at",
+        "available_from",
+        "pickup_deadline",
+        "created_at",
+        "updated_at",
+        when_used="json",
+    )
+    def serialize_utc(
+        self, value: datetime | None
+    ) -> datetime | None:
+        if value is None:
+            return None
+
+        if value.utcoffset() is None:
+            value = value.replace(tzinfo=timezone.utc)
+
+        return value.astimezone(timezone.utc)
+
+
+class DonationDetailResponse(BaseModel):
+    data: DonationDetailData

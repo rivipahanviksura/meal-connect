@@ -203,3 +203,51 @@ def test_membership_role_controls_organization_access(
     assert response.status_code == expected_status
     if expected_status == 403:
         assert response.json()["error"]["code"] == "FORBIDDEN"
+
+
+# MEAL-91: Rejected organizations cannot access protected operations.
+@pytest.mark.parametrize(
+    "organization_type,user_role",
+    [
+        (OrganizationType.restaurant, UserRole.business_staff),
+        (OrganizationType.bakery, UserRole.business_staff),
+        (OrganizationType.ngo, UserRole.ngo_staff),
+    ],
+)
+def test_rejected_organization_cannot_access_protected_operation(
+    organization_type,
+    user_role,
+):
+    user = create_user(role=user_role)
+    organization = create_organization(
+        org_type=organization_type,
+        status=VerificationStatus.rejected,
+    )
+    db = create_db(organization)
+
+    with create_client(user, db) as client:
+        response = client.get("/organization")
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"
+
+
+# MEAL-91: Revoking verification blocks subsequent access.
+def test_revoked_verification_blocks_subsequent_access():
+    user = create_user(role=UserRole.business_staff)
+    organization = create_organization(
+        status=VerificationStatus.approved,
+    )
+    db = create_db(organization)
+
+    with create_client(user, db) as client:
+        before_revocation = client.get("/organization")
+
+        assert before_revocation.status_code == 200
+
+        organization.verification_status = VerificationStatus.suspended
+
+        after_revocation = client.get("/organization")
+
+    assert after_revocation.status_code == 403
+    assert after_revocation.json()["error"]["code"] == "FORBIDDEN"

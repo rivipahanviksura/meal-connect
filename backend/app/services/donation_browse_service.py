@@ -13,6 +13,27 @@ from app.schemas.donation import (
     DonationPagination,
 )
 
+def donation_visibility_conditions(now: datetime):
+    """Shared NGO donation visibility conditions."""
+    remaining_quantity = (
+        Donation.total_quantity - Donation.allocated_quantity
+    )
+
+    return [
+        Donation.status.in_([
+            DonationStatus.available,
+            DonationStatus.partially_allocated,
+        ]),
+        Donation.available_from <= now,
+        Donation.pickup_deadline > now,
+        remaining_quantity > 0,
+        Organization.verification_status == VerificationStatus.approved,
+        Organization.type.in_([
+            OrganizationType.restaurant,
+            OrganizationType.bakery,
+        ]),
+    ]
+
 
 def browse_available_donations(
     db: Session,
@@ -25,26 +46,14 @@ def browse_available_donations(
     if current_time.utcoffset() is None:
         raise ValueError("now must include a timezone")
 
-    # Keep SQL comparisons consistent for equivalent timezone-aware instants.
+    # Normalize the discovery clock before applying the shared visibility rules.
     current_time = to_utc(current_time, field_name="now")
 
     remaining_quantity = (
         Donation.total_quantity - Donation.allocated_quantity
     )
 
-    conditions = [
-        Donation.status.in_(
-            [
-                DonationStatus.available,
-                DonationStatus.partially_allocated,
-            ]
-        ),
-        Donation.available_from <= current_time,
-        Donation.pickup_deadline > current_time,
-        remaining_quantity > 0,
-        Organization.verification_status == VerificationStatus.approved,
-        Organization.type.in_([OrganizationType.restaurant, OrganizationType.bakery]),
-    ]
+    conditions = donation_visibility_conditions(current_time)
 
     if filters.city is not None:
         conditions.append(
@@ -76,8 +85,7 @@ def browse_available_donations(
 
     if filters.pickup_deadline_before is not None:
         conditions.append(
-            Donation.pickup_deadline
-            <= to_utc(
+            Donation.pickup_deadline <= to_utc(
                 filters.pickup_deadline_before,
                 field_name="pickup_deadline_before",
             )

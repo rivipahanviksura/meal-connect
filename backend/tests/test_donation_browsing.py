@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr, ValidationError
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
@@ -364,6 +364,177 @@ def test_available_before_limits_listing_start(db):
     assert [item.donation_id for item in result.data] == [1]
 
 
+# MEAL-225 — Donation Detail API Tests
+
+
+def detail_window():
+    now = datetime.now(timezone.utc)
+    return {
+        "available_from": now - timedelta(hours=1),
+        "pickup_deadline": now + timedelta(hours=2),
+    }
+
+
+def test_detail_requires_authentication(client):
+    response = client.get("/api/v1/donations/1")
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "AUTH_REQUIRED"
+
+
+def test_verified_ngo_can_view_available_detail(db, client):
+    create_ngo_account(db)
+    create_donation(db, 1, **detail_window())
+
+    response = client.get(
+        "/api/v1/donations/1",
+        headers=ngo_headers(),
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+
+    assert data["donation_id"] == 1
+    assert data["organization_id"] == 2
+    assert data["status"] == "available"
+    assert Decimal(data["remaining_quantity"]) == Decimal("10.00")
+    assert data["pickup_city"] == "Colombo"
+
+
+def test_business_can_view_own_draft(db, client):
+    create_donation(db, 1, status=DonationStatus.draft)
+
+    response = client.get(
+        "/api/v1/donations/1",
+        headers={
+            "Authorization": f"Bearer {create_access_token(2)}"
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "draft"
+    assert response.json()["data"]["organization_id"] == 2
+
+
+def test_other_business_cannot_view_donation(db, client):
+    create_ngo_account(
+        db,
+        role=UserRole.business_staff,
+        organization_type=OrganizationType.restaurant,
+    )
+    create_donation(db, 1, **detail_window())
+
+    response = client.get(
+        "/api/v1/donations/1",
+        headers=ngo_headers(),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"status": DonationStatus.draft},
+        {"status": DonationStatus.cancelled},
+        {"status": DonationStatus.expired},
+        {"status": DonationStatus.fully_allocated},
+        {"status": DonationStatus.collected},
+        {"allocated_quantity": Decimal("10.00")},
+        {
+            "pickup_deadline":
+                datetime.now(timezone.utc) - timedelta(minutes=1)
+        },
+        {
+            "available_from":
+                datetime.now(timezone.utc) + timedelta(hours=1)
+        },
+    ],
+)
+def test_ngo_cannot_view_ineligible_detail(db, client, changes):
+    create_ngo_account(db)
+
+    values = detail_window()
+    values.update(changes)
+
+    # Maintain the database constraint:
+    # pickup_deadline must be after available_from.
+    if "pickup_deadline" in changes:
+        values["available_from"] = (
+            changes["pickup_deadline"] - timedelta(hours=1)
+        )
+
+    if "available_from" in changes:
+        values["pickup_deadline"] = (
+            changes["available_from"] + timedelta(hours=2)
+        )
+
+    create_donation(db, 1, **values)
+
+    response = client.get(
+        "/api/v1/donations/1",
+        headers=ngo_headers(),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
+
+
+def test_pending_ngo_cannot_view_detail(db, client):
+    create_ngo_account(
+        db,
+        verification_status=VerificationStatus.pending,
+    )
+    create_donation(db, 1, **detail_window())
+
+    response = client.get(
+        "/api/v1/donations/1",
+        headers=ngo_headers(),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_ngo_cannot_view_unapproved_publisher(db, client):
+    create_ngo_account(db)
+    create_donation(db, 1, **detail_window())
+
+    publisher = db.get(Organization, 2)
+    publisher.verification_status = VerificationStatus.pending
+    db.commit()
+
+    response = client.get(
+        "/api/v1/donations/1",
+        headers=ngo_headers(),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
+
+
+def test_detail_remaining_quantity(db, client):
+    create_ngo_account(db)
+    create_donation(
+        db,
+        1,
+        status=DonationStatus.partially_allocated,
+        allocated_quantity=Decimal("6.00"),
+        **detail_window(),
+    )
+
+    response = client.get(
+        "/api/v1/donations/1",
+        headers=ngo_headers(),
+    )
+
+    assert response.status_code == 200
+    assert Decimal(
+        response.json()["data"]["remaining_quantity"]
+    ) == Decimal("4.00")
+
+
 # MEAL-105: combined filter and pickup-deadline regression coverage.
 
 def test_all_filters_use_intersection_for_items_and_pagination(db):
@@ -606,3 +777,146 @@ def test_discovery_now_matches_instant_across_timezone_offsets(db):
 
     assert [item.donation_id for item in utc_result.data] == [1]
     assert [item.donation_id for item in local_result.data] == [1]
+
+
+# MEAL-224: reviewer-requested UTC boundary and pre-query checks.
+CUTOFF_FIELDS = ("available_before", "pickup_deadline_before")
+OUT_OF_RANGE_CUTOFFS = (
+    "0001-01-01T00:00:00+05:30",
+    "9999-12-31T23:59:59-05:00",
+)
+
+
+@pytest.mark.parametrize("field_name", CUTOFF_FIELDS)
+@pytest.mark.parametrize("invalid_value", OUT_OF_RANGE_CUTOFFS)
+@pytest.mark.parametrize("as_datetime", [False, True])
+def test_browse_schema_rejects_utc_range_overflow(
+    field_name, invalid_value, as_datetime
+):
+    value = datetime.fromisoformat(invalid_value) if as_datetime else invalid_value
+
+    with pytest.raises(ValidationError, match="supported UTC datetime range") as exc:
+        DonationBrowseQuery(**{field_name: value})
+
+    assert exc.value.errors()[0]["loc"] == (field_name,)
+
+
+@pytest.mark.parametrize("field_name", CUTOFF_FIELDS)
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("0001-01-01T05:30:00+05:30", datetime.min.replace(tzinfo=timezone.utc)),
+        ("9999-12-31T18:59:59.999999-05:00", datetime.max.replace(tzinfo=timezone.utc)),
+        ("2026-11-19T18:00:00+05:30", datetime(2026, 11, 19, 12, 30, tzinfo=timezone.utc)),
+    ],
+)
+def test_browse_schema_accepts_valid_utc_boundaries(field_name, value, expected):
+    filters = DonationBrowseQuery(**{field_name: value})
+
+    assert getattr(filters, field_name).astimezone(timezone.utc) == expected
+
+
+@pytest.mark.parametrize("field_name", CUTOFF_FIELDS)
+@pytest.mark.parametrize("invalid_value", OUT_OF_RANGE_CUTOFFS)
+def test_http_rejects_utc_overflow_without_any_db_queries(
+    db, client, monkeypatch, field_name, invalid_value
+):
+    create_ngo_account(db)
+    executed = []
+    engine = db.get_bind()
+
+    def record_query(conn, cursor, statement, parameters, context, executemany):
+        executed.append(statement)
+
+    def unexpected_browse(*args, **kwargs):
+        pytest.fail("Invalid cutoff reached the donation browse service")
+
+    monkeypatch.setattr(
+        "app.api.donations.browse_available_donations", unexpected_browse
+    )
+    event.listen(engine, "before_cursor_execute", record_query)
+    try:
+        response = client.get(
+            "/api/v1/donations",
+            headers=ngo_headers(),
+            params={field_name: invalid_value},
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record_query)
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "VALIDATION_ERROR"
+    assert any(
+        field["field"] == field_name
+        and "supported UTC datetime range" in field["message"]
+        for field in error["fields"]
+    )
+    assert executed == []
+
+
+def test_http_rejects_both_invalid_cutoffs_together(db, client):
+    create_ngo_account(db)
+    response = client.get(
+        "/api/v1/donations",
+        headers=ngo_headers(),
+        params=dict(zip(CUTOFF_FIELDS, OUT_OF_RANGE_CUTOFFS)),
+    )
+
+    assert response.status_code == 422
+    assert {
+        item["field"] for item in response.json()["error"]["fields"]
+    } == set(CUTOFF_FIELDS)
+
+
+@pytest.mark.parametrize("field_name", CUTOFF_FIELDS)
+@pytest.mark.parametrize(
+    ("value", "expected_ids"),
+    [
+        ("0001-01-01T05:30:00+05:30", []),
+        ("9999-12-31T18:59:59.999999-05:00", [1]),
+    ],
+)
+def test_http_accepts_convertible_utc_boundaries(
+    db, client, field_name, value, expected_ids
+):
+    create_ngo_account(db)
+    current = datetime.now(timezone.utc)
+    create_donation(
+        db,
+        1,
+        available_from=current - timedelta(hours=1),
+        pickup_deadline=current + timedelta(hours=1),
+    )
+
+    response = client.get(
+        "/api/v1/donations", headers=ngo_headers(), params={field_name: value}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["donation_id"] for item in body["data"]] == expected_ids
+    assert body["pagination"]["total_items"] == len(expected_ids)
+
+
+def test_openapi_preserves_browse_query_parameters(client):
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    operation = response.json()["paths"]["/api/v1/donations"]["get"]
+    names = {p["name"] for p in operation["parameters"] if p["in"] == "query"}
+    assert names == {
+        "city", "category", "status", "min_quantity", "available_before",
+        "pickup_deadline_before", "sort", "page", "page_size",
+    }
+
+
+@pytest.mark.parametrize("field_name", CUTOFF_FIELDS)
+def test_valid_cutoff_does_not_bypass_ngo_verification(db, client, field_name):
+    create_ngo_account(db, verification_status=VerificationStatus.pending)
+    response = client.get(
+        "/api/v1/donations",
+        headers=ngo_headers(),
+        params={field_name: "2026-11-19T18:00:00+05:30"},
+    )
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"

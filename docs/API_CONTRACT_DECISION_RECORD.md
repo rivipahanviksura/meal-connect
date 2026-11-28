@@ -68,7 +68,7 @@ Use the existing MEAL-74 handler as the Sprint 2 contract:
 ## DEC-06 — One authorized login account per organization (APPROVED)
 
 - The public registration UI provides **Restaurant/Business** and **NGO/Charity** only; each organization has **one** authorized login account. The account belongs to an authorized representative; no multiple-staff membership invitations, shared passwords or organization-wide credential sharing in the MVP.
-- Enforce one account per organization and one organization per applicant account. Keep `organization_memberships` for the ownership link, approved membership and audit; review actual PostgreSQL constraints and implement any necessary indexed/unique constraints with Alembic.
+- Enforce one account per organization and one organization per applicant account. Keep `organization_memberships` for the ownership link, approved membership and audit. The global unique constraint on `user_id` applies regardless of membership status, including `removed`; a removed membership does not permit self-service rejoining another organization. Ownership recovery or transfer is Admin-mediated. These uniqueness constraints are implemented through Alembic migrations.
 - Prevent duplicate registration based on organization type plus issuing authority and registration identifier, with race-safe transactions; ensure Admin-mediated recovery/transfer of account ownership if representative changes.
 - The current global role enum is a compatibility concern: do not delete its `volunteer` literal or create a new role without a deliberate migration. It is **not a public signup or operational volunteer actor**.
 
