@@ -1,0 +1,118 @@
+
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #f7f9f8;
+  color: #20352b;
+}
+
+/* Shared content area */
+.app-content {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: 1.5rem;
+
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem;
+  box-sizing: border-box;
+}
+
+/* Sidebar component */
+app-sidebar {
+  display: block;
+  flex: 0 0 260px;
+  min-width: 0;
+}
+
+/* Main page content */
+.app-main {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+
+  padding: 1.5rem;
+  box-sizing: border-box;
+
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+}
+
+/* Tablet layout */
+@media (max-width: 1024px) {
+  .app-content {
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+
+  app-sidebar {
+    flex-basis: 220px;
+  }
+
+  .app-main {
+    padding: 1.25rem;
+  }
+}
+
+/* Mobile layout */
+@media (max-width: 768px) {
+  .app-content {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  app-sidebar {
+    width: 100%;
+    flex: none;
+  }
+
+  .app-main {
+    width: 100%;
+    padding: 1rem;
+  }
+}
+
+/* Small mobile screens */
+@media (max-width: 480px) {
+  .app-content {
+    padding: 0.75rem;
+  }
+
+  .app-main {
+    padding: 0.875rem;
+    border-radius: 0.5rem;
+  }
+}
+
+
+/* Account session feedback */
+.session-message {
+  width: calc(100% - 2rem);
+  max-width: 1200px;
+  margin: 1rem auto 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.5rem;
+  background-color: #eff6ff;
+  color: #1e40af;
+  font-size: 0.875rem;
+}
+
+.session-error {
+  border-color: #fecaca;
+  background-color: #fef2f2;
+  color: #991b1b;
+}

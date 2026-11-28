@@ -1,0 +1,32 @@
+
+<div class="app-shell">
+  <app-header
+    [isAuthenticated]="navigationSession.isAuthenticated()"
+    [logoutEnabled]="false"
+  />
+
+  @if (navigationSession.session().status === 'loading') {
+    <div class="session-message" role="status" aria-live="polite">
+      Checking account status...
+    </div>
+  }
+
+  @if (navigationSession.session().status === 'error') {
+    <div class="session-message session-error" role="alert">
+      Account information is currently unavailable.
+      Please try again later.
+    </div>
+  }
+
+  <div class="app-content">
+    @if (navigationSession.isAuthenticated()) {
+      <app-sidebar [account]="account()" />
+    }
+
+    <main class="app-main" id="main-content">
+      <router-outlet />
+    </main>
+  </div>
+
+  <app-footer />
+</div>

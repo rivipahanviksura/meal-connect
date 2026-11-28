@@ -1,0 +1,130 @@
+<div class="detail-container">
+  @if (loading()) {
+    <div class="state-box">Loading donation safety and pickup details...</div>
+  }
+
+  @if (error(); as err) {
+    <div class="error-card">
+      <span class="badge-error">HTTP {{ err.status }}</span>
+      <h2>{{ err.title }}</h2>
+      <p>{{ err.message }}</p>
+      <div class="actions">
+        <button type="button" (click)="retryLoad()" class="btn-secondary">Retry</button>
+        <a routerLink="/donations" class="btn-primary">Back to Listings</a>
+      </div>
+    </div>
+  }
+
+  @if (donation(); as item) {
+    <header class="detail-header">
+      <div>
+        <span class="status-pill" [class.claimed]="item.status !== 'AVAILABLE'">{{ item.status }}</span>
+        <h1>{{ item.title }}</h1>
+        <p class="org-meta">
+          Posted by <strong>{{ item.organization.name }}</strong>
+          @if (item.organization.verified) {
+            <span class="verified-tag">Verified Donor</span>
+          }
+        </p>
+      </div>
+      <div class="deadline-box">
+        <small>Pickup Deadline</small>
+        <strong>{{ item.pickupDeadline | date:'medium' }}</strong>
+      </div>
+    </header>
+
+    <div class="grid-layout">
+      <section class="main-info">
+        <div class="card">
+          <h3>Quantity & Breakdown</h3>
+          <p>Total: <strong>{{ item.totalServings }} Servings</strong> ({{ item.totalWeightKg }} kg)</p>
+          <table class="items-table">
+            <thead>
+            <tr>
+              <th>Item</th>
+              <th>Qty</th>
+              <th>Temp</th>
+              <th>Use By</th>
+            </tr>
+            </thead>
+            <tbody>
+              @for (food of item.items; track food.name) {
+                <tr>
+                  <td>{{ food.name }}</td>
+                  <td>{{ food.quantity }} ({{ food.weightKg }}kg)</td>
+                  <td>{{ food.storageTemp }}</td>
+                  <td>{{ food.expiryTime }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3>Storage & Allergen Information</h3>
+          <p><strong>Storage Requirement:</strong> {{ item.storageType }} ({{ item.temperatureRange }})</p>
+          <div class="allergen-box">
+            <strong>Contains Allergens:</strong>
+            @for (allergen of item.allergens; track allergen) {
+              <span class="allergen-chip">{{ allergen }}</span>
+            } @empty {
+              <span>No major allergens declared</span>
+            }
+          </div>
+        </div>
+      </section>
+
+      <aside class="side-panel">
+        <div class="card">
+          <h3>Pickup Logistics</h3>
+          <p><strong>Area:</strong> {{ item.pickupLocation.generalArea }}</p>
+
+          @if (item.permissions.canViewPickupAddress) {
+            <div class="unlocked-info">
+              <p><strong>Exact Address:</strong> {{ item.pickupLocation.exactAddress }}</p>
+              <p><strong>Instructions:</strong> {{ item.pickupLocation.accessInstructions }}</p>
+              <p><strong>Contact:</strong> {{ item.pickupLocation.contactPerson }} ({{ item.pickupLocation.contactPhone }})</p>
+            </div>
+          } @else {
+            <div class="locked-notice">
+              Exact street address and coordinator phone number are visible only to verified NGO accounts.
+            </div>
+          }
+        </div>
+
+        @if (item.permissions.canClaim && item.status === 'AVAILABLE') {
+          <div class="card claim-card">
+            <h3>Collection Readiness Check</h3>
+            <label>
+              <input type="checkbox" [(ngModel)]="checks.coldStorageReady" />
+              Cold/dry storage capacity confirmed
+            </label>
+            <label>
+              <input type="checkbox" [(ngModel)]="checks.vehicleFits" />
+              Transport vehicle capacity verified
+            </label>
+            <label>
+              <input type="checkbox" [(ngModel)]="checks.allergenChecked" />
+              Allergen handling protocol acknowledged
+            </label>
+
+            <button
+              type="button"
+              class="btn-primary full-width"
+              [disabled]="!canSubmitClaim() || claiming()"
+              (click)="submitClaim()"
+            >
+              {{ claiming() ? 'Confirming Claim...' : 'Claim Donation for Pickup' }}
+            </button>
+          </div>
+        }
+
+        @if (claimSuccessRef(); as ref) {
+          <div class="success-banner">
+            Pickup Confirmed! Reference ID: <strong>{{ ref }}</strong>
+          </div>
+        }
+      </aside>
+    </div>
+  }
+</div>
