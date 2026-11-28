@@ -208,7 +208,7 @@ The registration wizard collects the applicable business or NGO fields above. Th
 
 | Method | Path | Access | Request | Success / rules |
 |---|---|---|---|---|
-| `GET` | `/donations` | Approved NGO or other specifically authorized actor | `city?`, `category?`, `status?`, `min_quantity?`, `available_before?`, `sort?`, `page?`, `page_size?` | `200`; paginated; exclude expired/cancelled from discovery by default |
+| `GET` | `/donations` | Approved NGO or other specifically authorized actor | `city?`, `category?`, `status?`, `min_quantity?`, `available_before?`, `pickup_deadline_before?` (proposed), `sort?`, `page?`, `page_size?` | `200`; paginated; exclude expired/cancelled from discovery by default |
 | `GET` | `/donations/{donation_id}` | Approved NGO or owning Restaurant (scope enforced) | — | `200`; detail including computed `remaining_quantity` |
 | `POST` | `/donations` | Approved business member | See donation creation body below | `201`; `allocated_quantity = 0` server-side |
 | `PATCH` | `/donations/{donation_id}` | Owning approved business | Allowed editable fields only | `200`; quantities/deadlines change only if no approved allocation |
@@ -247,6 +247,12 @@ GET /api/v1/donations?city=Colombo&category=prepared_meal&min_quantity=5&sort=pi
 Permitted sort keys: `pickup_deadline`, `-pickup_deadline`, `created_at`, `-created_at`. `min_quantity` refers to **remaining** stock. Invalid filters, sort keys or pagination should yield `422`.
 
 The verified NGO browse endpoint returns listings from approved restaurants and bakeries. Its results and pagination totals exclude listings from suspended publishers. `available_before` is an inclusive upper bound on `available_from` and applies within the current availability window.
+
+**MEAL-105 / MEAL-224 proposed additive filter (requires API contract owner approval):** `pickup_deadline_before` accepts a timezone-aware ISO 8601 timestamp and includes donations whose `pickup_deadline` is at or before that instant. All supplied filters combine using logical AND; the same predicates apply to listing items and pagination totals. `available_before` continues to filter `available_from`. Both timestamp cutoffs and the discovery clock are compared as UTC instants. Already expired or otherwise non-requestable donations remain excluded.
+
+Both cutoff fields must be convertible to a representable Python UTC datetime (years 1–9999). Invalid cutoff timestamps return `422 VALIDATION_ERROR` with the affected field(s) in `error.fields`, before any database query. This cutoff pre-validation runs before DB-backed authorization; valid requests still require an authorized, verified NGO. The approved MEAL-62 contract is not changed by this proposal.
+
+Example: `GET /api/v1/donations?city=Colombo&category=prepared_meal&min_quantity=5&pickup_deadline_before=2026-12-01T18%3A00%3A00%2B05%3A30`
 
 ### 4.5 NGO requests and business approval
 

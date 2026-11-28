@@ -1,6 +1,8 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status, Path
+from fastapi import APIRouter, Depends, Query, Request, status, Path
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
@@ -49,10 +51,36 @@ def create_donation_listing(
 
 
 
+def _validate_browse_cutoffs_before_auth(request: Request) -> None:
+    """Reject invalid cutoff timestamps before DB-backed authorization runs.
+
+    FastAPI resolves route dependencies before validating endpoint query models.
+    Reuse the schema here for the two cutoffs; retain Query() on the endpoint
+    for full filter validation and OpenAPI documentation.
+    """
+    cutoffs = {
+        name: request.query_params[name]
+        for name in ("available_before", "pickup_deadline_before")
+        if name in request.query_params
+    }
+    if not cutoffs:
+        return
+
+    try:
+        DonationBrowseQuery.model_validate(cutoffs)
+    except ValidationError as exc:
+        errors = [
+            {**error, "loc": ("query", *error["loc"])}
+            for error in exc.errors(include_context=False, include_url=False)
+        ]
+        raise RequestValidationError(errors) from exc
+
+
 @router.get(
     "",
     response_model=DonationListResponse,
     dependencies=[
+        Depends(_validate_browse_cutoffs_before_auth),
         Depends(require_roles(UserRole.ngo_staff)),
         Depends(get_current_organization),
     ],

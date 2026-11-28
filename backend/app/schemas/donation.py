@@ -157,6 +157,8 @@ class DonationBrowseQuery(BaseModel):
     )
 
     available_before: AwareDatetime | None = None
+    # Inclusive upper bound on the collection deadline (not availability start).
+    pickup_deadline_before: AwareDatetime | None = None
 
     sort: Literal[
         "pickup_deadline",
@@ -167,6 +169,18 @@ class DonationBrowseQuery(BaseModel):
 
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
+
+    @field_validator("available_before", "pickup_deadline_before")
+    @classmethod
+    def validate_cutoff_utc_range(cls, value: datetime | None) -> datetime | None:
+        if value is not None:
+            try:
+                value.astimezone(timezone.utc)
+            except (OverflowError, ValueError) as exc:
+                raise ValueError(
+                    "Timestamp is outside the supported UTC datetime range."
+                ) from exc
+        return value
 
     @model_validator(mode="after")
     def validate_pagination_offset(self) -> Self:

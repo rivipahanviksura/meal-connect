@@ -3,9 +3,9 @@ from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
@@ -533,3 +533,390 @@ def test_detail_remaining_quantity(db, client):
     assert Decimal(
         response.json()["data"]["remaining_quantity"]
     ) == Decimal("4.00")
+
+
+# MEAL-105: combined filter and pickup-deadline regression coverage.
+
+def test_all_filters_use_intersection_for_items_and_pagination(db):
+    # Both the selected rows meet *every* requested condition.
+    matching = {
+        "available_from": NOW - timedelta(hours=2),
+        "pickup_deadline": NOW + timedelta(minutes=30),
+        "allocated_quantity": Decimal("3.00"),
+    }
+    create_donation(db, 1, **matching)
+    create_donation(db, 2, **{
+        **matching,
+        "pickup_deadline": NOW + timedelta(hours=1),  # Inclusive cutoff.
+    })
+
+    # Each other row violates exactly one (or more) filter constraints.
+    create_donation(db, 3, **{**matching, "pickup_city": "Kandy"})
+    create_donation(db, 4, **{**matching, "category": "vegetables"})
+    create_donation(db, 5, **{**matching, "allocated_quantity": Decimal("8.00")})
+    create_donation(db, 6, **{
+        **matching,
+        "pickup_deadline": NOW + timedelta(hours=1, seconds=1),
+    })
+    create_donation(db, 7, **{
+        **matching,
+        "available_from": NOW - timedelta(minutes=30),
+    })
+    create_donation(db, 8, **{
+        **matching,
+        "status": DonationStatus.partially_allocated,
+    })
+    create_donation(db, 9, **{**matching, "status": DonationStatus.draft})
+
+    filters = {
+        "city": " COLOMBO ",
+        "category": "PREPARED_MEAL",
+        "status": "available",
+        "min_quantity": Decimal("5.00"),
+        "available_before": NOW - timedelta(hours=1),
+        "pickup_deadline_before": NOW + timedelta(hours=1),
+        "page_size": 1,
+    }
+
+    first = browse(db, page=1, **filters)
+    second = browse(db, page=2, **filters)
+    empty = browse(db, page=3, **filters)
+
+    assert [item.donation_id for item in first.data] == [1]
+    assert [item.donation_id for item in second.data] == [2]
+    assert empty.data == []
+    assert first.pagination.total_items == 2
+    assert second.pagination.total_items == 2
+    assert empty.pagination.total_items == 2
+    assert first.pagination.total_pages == 2
+    assert second.data[0].remaining_quantity == Decimal("7.00")
+
+
+def test_deadline_filter_is_independent_of_availability_start(db):
+    create_donation(
+        db,
+        1,
+        available_from=NOW - timedelta(hours=2),
+        pickup_deadline=NOW + timedelta(hours=1),
+    )
+    create_donation(
+        db,
+        2,
+        available_from=NOW - timedelta(minutes=30),
+        pickup_deadline=NOW + timedelta(minutes=20),
+    )
+
+    # Filtering the pickup deadline includes #2, but filtering the start
+    # timestamp includes #1. Existing available_before semantics must stay.
+    deadline = browse(db, pickup_deadline_before=NOW + timedelta(minutes=30))
+    start = browse(db, available_before=NOW - timedelta(hours=1))
+
+    assert [item.donation_id for item in deadline.data] == [2]
+    assert [item.donation_id for item in start.data] == [1]
+
+
+def test_deadline_cutoff_uses_utc_instant_not_offset_wall_clock(db):
+    create_donation(db, 1, pickup_deadline=NOW + timedelta(minutes=30))
+    create_donation(db, 2, pickup_deadline=NOW + timedelta(minutes=31))
+
+    colombo = timezone(timedelta(hours=5, minutes=30))
+    local_cutoff = (NOW + timedelta(minutes=30)).astimezone(colombo)
+    result = browse(db, pickup_deadline_before=local_cutoff)
+
+    assert [item.donation_id for item in result.data] == [1]
+    assert result.pagination.total_items == 1
+
+
+def test_deadline_cutoff_cannot_resurrect_expired_or_unavailable_donations(db):
+    create_donation(db, 1, pickup_deadline=NOW - timedelta(seconds=1))
+    create_donation(db, 2, pickup_deadline=NOW)
+    create_donation(db, 3, pickup_deadline=NOW + timedelta(minutes=10))
+    create_donation(
+        db,
+        4,
+        status=DonationStatus.cancelled,
+        pickup_deadline=NOW + timedelta(minutes=10),
+    )
+    result = browse(db, pickup_deadline_before=NOW + timedelta(days=1))
+
+    assert [item.donation_id for item in result.data] == [3]
+    assert result.pagination.total_items == 1
+
+
+def test_empty_filter_intersection_has_consistent_zero_count(db):
+    create_donation(db, 1, pickup_city="Colombo")
+    create_donation(db, 2, pickup_city="Kandy")
+
+    result = browse(
+        db,
+        city="Colombo",
+        category="prepared_meal",
+        min_quantity=Decimal("5.00"),
+        pickup_deadline_before=NOW + timedelta(minutes=1),
+    )
+
+    assert result.data == []
+    assert result.pagination.total_items == 0
+    assert result.pagination.total_pages == 0
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "2026-11-19T18:00:00",  # No timezone offset.
+        "not-a-timestamp",
+    ],
+)
+def test_deadline_filter_rejects_invalid_or_naive_timestamps(invalid):
+    with pytest.raises(ValidationError):
+        DonationBrowseQuery(pickup_deadline_before=invalid)
+
+
+def test_deadline_filter_can_be_used_without_any_other_filter():
+    filters = DonationBrowseQuery(
+        pickup_deadline_before="2026-11-19T18:00:00+05:30"
+    )
+
+    assert filters.city is None
+    assert filters.available_before is None
+    assert filters.pickup_deadline_before.utcoffset() == timedelta(
+        hours=5, minutes=30
+    )
+
+
+def test_authenticated_ngo_can_combine_filters_over_http(db, client):
+    create_ngo_account(db)
+    current = datetime.now(timezone.utc)
+    create_donation(
+        db,
+        1,
+        available_from=current - timedelta(hours=2),
+        pickup_deadline=current + timedelta(minutes=15),
+    )
+    create_donation(
+        db,
+        2,
+        available_from=current - timedelta(hours=2),
+        pickup_deadline=current + timedelta(hours=2),
+    )
+
+    response = client.get(
+        "/api/v1/donations",
+        headers=ngo_headers(),
+        params={
+            "city": "Colombo",
+            "category": "prepared_meal",
+            "min_quantity": "5.00",
+            "pickup_deadline_before": (
+                current + timedelta(minutes=30)
+            ).isoformat(),
+        },
+    )
+
+    assert response.status_code == 200
+    assert [item["donation_id"] for item in response.json()["data"]] == [1]
+    assert response.json()["pagination"]["total_items"] == 1
+
+
+def test_http_rejects_naive_deadline_without_leaking_listings(db, client):
+    create_ngo_account(db)
+    response = client.get(
+        "/api/v1/donations",
+        headers=ngo_headers(),
+        params={"pickup_deadline_before": "2026-11-19T18:00:00"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert response.json()["error"]["fields"]
+
+
+def test_existing_authorization_still_blocks_anonymous_deadline_queries(client):
+    response = client.get(
+        "/api/v1/donations",
+        params={"pickup_deadline_before": "2026-11-19T18:00:00Z"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "AUTH_REQUIRED"
+
+
+def test_available_before_matches_instant_across_timezone_offsets(db):
+    create_donation(db, 1, available_from=NOW - timedelta(hours=2))
+    create_donation(db, 2, available_from=NOW - timedelta(minutes=10))
+
+    cutoff_utc = NOW - timedelta(hours=1)
+    cutoff_colombo = cutoff_utc.astimezone(
+        timezone(timedelta(hours=5, minutes=30))
+    )
+
+    utc_result = browse(db, available_before=cutoff_utc)
+    colombo_result = browse(db, available_before=cutoff_colombo)
+
+    assert [item.donation_id for item in utc_result.data] == [1]
+    assert [item.donation_id for item in colombo_result.data] == [1]
+
+
+def test_discovery_now_matches_instant_across_timezone_offsets(db):
+    create_donation(
+        db,
+        1,
+        available_from=NOW - timedelta(hours=1),
+        pickup_deadline=NOW + timedelta(hours=1),
+    )
+    now_colombo = NOW.astimezone(
+        timezone(timedelta(hours=5, minutes=30))
+    )
+
+    utc_result = browse_available_donations(
+        db, filters=DonationBrowseQuery(), now=NOW
+    )
+    local_result = browse_available_donations(
+        db, filters=DonationBrowseQuery(), now=now_colombo
+    )
+
+    assert [item.donation_id for item in utc_result.data] == [1]
+    assert [item.donation_id for item in local_result.data] == [1]
+
+
+# MEAL-224: reviewer-requested UTC boundary and pre-query checks.
+CUTOFF_FIELDS = ("available_before", "pickup_deadline_before")
+OUT_OF_RANGE_CUTOFFS = (
+    "0001-01-01T00:00:00+05:30",
+    "9999-12-31T23:59:59-05:00",
+)
+
+
+@pytest.mark.parametrize("field_name", CUTOFF_FIELDS)
+@pytest.mark.parametrize("invalid_value", OUT_OF_RANGE_CUTOFFS)
+@pytest.mark.parametrize("as_datetime", [False, True])
+def test_browse_schema_rejects_utc_range_overflow(
+    field_name, invalid_value, as_datetime
+):
+    value = datetime.fromisoformat(invalid_value) if as_datetime else invalid_value
+
+    with pytest.raises(ValidationError, match="supported UTC datetime range") as exc:
+        DonationBrowseQuery(**{field_name: value})
+
+    assert exc.value.errors()[0]["loc"] == (field_name,)
+
+
+@pytest.mark.parametrize("field_name", CUTOFF_FIELDS)
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("0001-01-01T05:30:00+05:30", datetime.min.replace(tzinfo=timezone.utc)),
+        ("9999-12-31T18:59:59.999999-05:00", datetime.max.replace(tzinfo=timezone.utc)),
+        ("2026-11-19T18:00:00+05:30", datetime(2026, 11, 19, 12, 30, tzinfo=timezone.utc)),
+    ],
+)
+def test_browse_schema_accepts_valid_utc_boundaries(field_name, value, expected):
+    filters = DonationBrowseQuery(**{field_name: value})
+
+    assert getattr(filters, field_name).astimezone(timezone.utc) == expected
+
+
+@pytest.mark.parametrize("field_name", CUTOFF_FIELDS)
+@pytest.mark.parametrize("invalid_value", OUT_OF_RANGE_CUTOFFS)
+def test_http_rejects_utc_overflow_without_any_db_queries(
+    db, client, monkeypatch, field_name, invalid_value
+):
+    create_ngo_account(db)
+    executed = []
+    engine = db.get_bind()
+
+    def record_query(conn, cursor, statement, parameters, context, executemany):
+        executed.append(statement)
+
+    def unexpected_browse(*args, **kwargs):
+        pytest.fail("Invalid cutoff reached the donation browse service")
+
+    monkeypatch.setattr(
+        "app.api.donations.browse_available_donations", unexpected_browse
+    )
+    event.listen(engine, "before_cursor_execute", record_query)
+    try:
+        response = client.get(
+            "/api/v1/donations",
+            headers=ngo_headers(),
+            params={field_name: invalid_value},
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record_query)
+
+    assert response.status_code == 422
+    error = response.json()["error"]
+    assert error["code"] == "VALIDATION_ERROR"
+    assert any(
+        field["field"] == field_name
+        and "supported UTC datetime range" in field["message"]
+        for field in error["fields"]
+    )
+    assert executed == []
+
+
+def test_http_rejects_both_invalid_cutoffs_together(db, client):
+    create_ngo_account(db)
+    response = client.get(
+        "/api/v1/donations",
+        headers=ngo_headers(),
+        params=dict(zip(CUTOFF_FIELDS, OUT_OF_RANGE_CUTOFFS)),
+    )
+
+    assert response.status_code == 422
+    assert {
+        item["field"] for item in response.json()["error"]["fields"]
+    } == set(CUTOFF_FIELDS)
+
+
+@pytest.mark.parametrize("field_name", CUTOFF_FIELDS)
+@pytest.mark.parametrize(
+    ("value", "expected_ids"),
+    [
+        ("0001-01-01T05:30:00+05:30", []),
+        ("9999-12-31T18:59:59.999999-05:00", [1]),
+    ],
+)
+def test_http_accepts_convertible_utc_boundaries(
+    db, client, field_name, value, expected_ids
+):
+    create_ngo_account(db)
+    current = datetime.now(timezone.utc)
+    create_donation(
+        db,
+        1,
+        available_from=current - timedelta(hours=1),
+        pickup_deadline=current + timedelta(hours=1),
+    )
+
+    response = client.get(
+        "/api/v1/donations", headers=ngo_headers(), params={field_name: value}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["donation_id"] for item in body["data"]] == expected_ids
+    assert body["pagination"]["total_items"] == len(expected_ids)
+
+
+def test_openapi_preserves_browse_query_parameters(client):
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    operation = response.json()["paths"]["/api/v1/donations"]["get"]
+    names = {p["name"] for p in operation["parameters"] if p["in"] == "query"}
+    assert names == {
+        "city", "category", "status", "min_quantity", "available_before",
+        "pickup_deadline_before", "sort", "page", "page_size",
+    }
+
+
+@pytest.mark.parametrize("field_name", CUTOFF_FIELDS)
+def test_valid_cutoff_does_not_bypass_ngo_verification(db, client, field_name):
+    create_ngo_account(db, verification_status=VerificationStatus.pending)
+    response = client.get(
+        "/api/v1/donations",
+        headers=ngo_headers(),
+        params={field_name: "2026-11-19T18:00:00+05:30"},
+    )
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "FORBIDDEN"
