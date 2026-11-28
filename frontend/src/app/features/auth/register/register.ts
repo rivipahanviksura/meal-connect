@@ -61,18 +61,32 @@ function registrationDateValidator(
     return null;
   }
 
-  const date = new Date(`${value}T00:00:00`);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return { invalidDate: true };
+  }
 
-  if (Number.isNaN(date.getTime())) {
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsedDate = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    parsedDate.getUTCFullYear() !== year ||
+    parsedDate.getUTCMonth() !== month - 1 ||
+    parsedDate.getUTCDate() !== day
+  ) {
     return { invalidDate: true };
   }
 
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const todayValue = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, '0'),
+    String(today.getDate()).padStart(2, '0'),
+  ].join('-');
 
-  return date > today
-    ? { futureDate: true }
-    : null;
+  return value > todayValue ? { futureDate: true } : null;
 }
 
 const requiredText = (maxLength = 255) =>
@@ -85,10 +99,14 @@ const requiredText = (maxLength = 255) =>
     ]
   });
 
-const optionalText = () =>
+const optionalPhone = () =>
   new FormControl('', {
     nonNullable: true,
-    validators: [Validators.maxLength(255)]
+    validators: [
+      Validators.maxLength(25),
+      // Accept common international formats; require 7–15 digits when supplied.
+      Validators.pattern(/^(?=(?:\D*\d){7,15}\D*$)\+?[0-9\s().-]{7,25}$/),
+    ]
   });
 
 @Component({
@@ -118,6 +136,7 @@ export class Register {
         nonNullable: true,
         validators: [
           Validators.required,
+          Validators.pattern(/\S/),
           Validators.minLength(2),
           Validators.maxLength(100)
         ]
@@ -127,6 +146,7 @@ export class Register {
         nonNullable: true,
         validators: [
           Validators.required,
+          Validators.pattern(/\S/),
           Validators.minLength(2),
           Validators.maxLength(100)
         ]
@@ -144,7 +164,8 @@ export class Register {
         nonNullable: true,
         validators: [
           Validators.required,
-          Validators.minLength(8)
+          Validators.minLength(8),
+          Validators.maxLength(128)
         ]
       }),
 
@@ -153,7 +174,7 @@ export class Register {
         validators: [Validators.required]
       }),
 
-      phone: optionalText()
+      phone: optionalPhone()
     },
     { validators: passwordsMatch }
   );
@@ -179,7 +200,7 @@ export class Register {
       ]
     }),
 
-    contactPhone: requiredText(),
+    contactPhone: optionalPhone(),
     representativeDesignation: requiredText(100)
   });
 
@@ -208,7 +229,7 @@ export class Register {
       ]
     }),
 
-    contactPhone: requiredText(),
+    contactPhone: optionalPhone(),
     representativeDesignation: requiredText(100),
     distributionArea: requiredText(),
     operationalCapability: requiredText()
