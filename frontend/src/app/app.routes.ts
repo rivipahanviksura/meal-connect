@@ -31,6 +31,16 @@ export const routes: Routes = [
       import('./shared/unauthorized/unauthorized')
         .then(m => m.Unauthorized)
   },
+
+
+  {
+    path: 'donations/:id',
+    title: 'Donation Details | Meal Connect',
+    loadComponent: () =>
+      import('./features/donations/donation-detail/donation-detail')
+        .then(m => m.DonationDetailComponent)
+  },
+
   {
     path: '**',
     redirectTo: ''
