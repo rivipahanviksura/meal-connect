@@ -22,6 +22,30 @@ describe('Login', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  it('marks invalid login fields and prevents an API request', () => {
+    const http = TestBed.inject(HttpTestingController);
+
+    component.form.setValue({
+      email: 'invalid-email',
+      password: '',
+    });
+
+    component.submit();
+
+    expect(component.form.invalid).toBe(true);
+    expect(component.form.controls.email.touched).toBe(true);
+    expect(component.form.controls.password.touched).toBe(true);
+    expect(component.form.controls.email.hasError('email')).toBe(true);
+    expect(component.form.controls.password.hasError('required')).toBe(true);
+    expect(component.isSubmitting()).toBe(false);
+
+    http.expectNone({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+    });
+    http.verify();
+  });
   it.each([
     {
       application: { status: 'pending_verification' },

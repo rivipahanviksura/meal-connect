@@ -196,9 +196,7 @@
                      type="email"
                      formControlName="email"
                      autocomplete="email"
-                     [attr.aria-invalid]="
-                accountForm.controls.email.touched &&
-                accountForm.controls.email.invalid"
+                     [attr.aria-invalid]="accountForm.controls.email.touched && accountForm.controls.email.invalid ? 'true' : null"
                      [attr.aria-describedby]="(accountForm.controls.email.touched && accountForm.controls.email.invalid) ? 'email-error' : null"
               />
 
@@ -208,9 +206,14 @@
                   {{ accountForm.controls.email.getError('server') }}
                 </p>
               } @else if (accountForm.controls.email.touched &&
+              accountForm.controls.email.hasError('required')) {
+                <p id="email-error" class="field-error mc-field__error" role="alert">
+                  Enter your email address.
+                </p>
+              } @else if (accountForm.controls.email.touched &&
               accountForm.controls.email.invalid) {
                 <p id="email-error" class="field-error mc-field__error" role="alert">
-                  Enter a valid email address.
+                  Enter a valid email address, such as name@example.com.
                 </p>
               }
 
@@ -223,9 +226,7 @@
                      type="password"
                      formControlName="password"
                      autocomplete="new-password"
-                     [attr.aria-invalid]="
-                accountForm.controls.password.touched &&
-                accountForm.controls.password.invalid"
+                     [attr.aria-invalid]="accountForm.controls.password.touched && accountForm.controls.password.invalid ? 'true' : null"
                      [attr.aria-describedby]="(accountForm.controls.password.touched && accountForm.controls.password.invalid) ? 'password-error' : null"
               />
 
@@ -236,9 +237,19 @@
                   {{ accountForm.controls.password.getError('server') }}
                 </p>
               } @else if (accountForm.controls.password.touched &&
-              accountForm.controls.password.invalid) {
+              accountForm.controls.password.hasError('required')) {
+                <p id="password-error" class="field-error mc-field__error" role="alert">
+                  Enter a password.
+                </p>
+              } @else if (accountForm.controls.password.touched &&
+              accountForm.controls.password.hasError('minlength')) {
                 <p id="password-error" class="field-error mc-field__error" role="alert">
                   Password must contain at least 8 characters.
+                </p>
+              } @else if (accountForm.controls.password.touched &&
+              accountForm.controls.password.hasError('maxlength')) {
+                <p id="password-error" class="field-error mc-field__error" role="alert">
+                  Password must not exceed 128 characters.
                 </p>
               }
 
@@ -273,10 +284,9 @@
 
             <div class="form-field full-width mc-field mc-field--full">
               <label for="phone">Contact Number (Optional)</label>
-              <input class="mc-field__input" [attr.aria-invalid]="
-             accountForm.controls.phone.touched &&
-             accountForm.controls.phone.invalid"
+              <input class="mc-field__input"
                      id="phone"
+                     [attr.aria-invalid]="accountForm.controls.phone.touched && accountForm.controls.phone.invalid ? 'true' : null"
                      type="tel"
                      formControlName="phone"
                      autocomplete="tel"
@@ -291,7 +301,7 @@
               } @else if (accountForm.controls.phone.touched &&
               accountForm.controls.phone.invalid) {
                 <p id="phone-error" class="field-error mc-field__error" role="alert">
-                  Enter a valid contact number.
+                  Enter a phone number with 7–15 digits, using only +, spaces, brackets, hyphens or dots (maximum 25 characters).
                 </p>
               }
 
@@ -468,12 +478,19 @@
                      id="businessContactEmail"
                      type="email"
                      formControlName="contactEmail"
-                     autocomplete="email"/>
+                     autocomplete="email"
+                     [attr.aria-invalid]="businessForm.controls.contactEmail.touched && businessForm.controls.contactEmail.invalid ? 'true' : null"
+                     [attr.aria-describedby]="businessForm.controls.contactEmail.touched && businessForm.controls.contactEmail.invalid ? 'business-contact-email-error' : null"/>
 
               @if (businessForm.controls.contactEmail.touched &&
+              businessForm.controls.contactEmail.hasError('required')) {
+                <p id="business-contact-email-error" class="field-error mc-field__error" role="alert">
+                  Enter the organization contact email.
+                </p>
+              } @else if (businessForm.controls.contactEmail.touched &&
               businessForm.controls.contactEmail.invalid) {
-                <p class="field-error mc-field__error" role="alert">
-                  Enter a valid organization contact email.
+                <p id="business-contact-email-error" class="field-error mc-field__error" role="alert">
+                  Enter a valid email address.
                 </p>
               }
             </div>
@@ -481,18 +498,20 @@
             <!-- Contact Phone -->
             <div class="form-field mc-field">
               <label for="businessContactPhone">
-                Organization Contact Number *
+                Organization Contact Number (Optional)
               </label>
               <input class="mc-field__input"
                      id="businessContactPhone"
                      type="tel"
                      formControlName="contactPhone"
-                     autocomplete="tel"/>
+                     autocomplete="tel"
+                     [attr.aria-invalid]="businessForm.controls.contactPhone.touched && businessForm.controls.contactPhone.invalid ? 'true' : null"
+                     [attr.aria-describedby]="businessForm.controls.contactPhone.touched && businessForm.controls.contactPhone.invalid ? 'business-contact-phone-error' : null"/>
 
               @if (businessForm.controls.contactPhone.touched &&
               businessForm.controls.contactPhone.invalid) {
-                <p class="field-error mc-field__error" role="alert">
-                  Enter your organization contact number.
+                <p id="business-contact-phone-error" class="field-error mc-field__error" role="alert">
+                  Enter 7–15 digits using only +, spaces, brackets, hyphens or dots (maximum 25 characters).
                 </p>
               }
             </div>
@@ -636,23 +655,22 @@
                      id="registrationDate"
                      type="date"
                      formControlName="registrationDate"
-                     [attr.aria-invalid]="
-    ngoForm.controls.registrationDate.touched &&
-    ngoForm.controls.registrationDate.invalid"/>
+                     [attr.aria-invalid]="ngoForm.controls.registrationDate.touched && ngoForm.controls.registrationDate.invalid ? 'true' : null"
+                     [attr.aria-describedby]="ngoForm.controls.registrationDate.touched && ngoForm.controls.registrationDate.invalid ? 'registration-date-error' : null"/>
 
               @if (ngoForm.controls.registrationDate.touched &&
               ngoForm.controls.registrationDate.hasError('required')) {
-                <p class="field-error mc-field__error" role="alert">
+                <p id="registration-date-error" class="field-error mc-field__error" role="alert">
                   Registration date is required.
                 </p>
               } @else if (ngoForm.controls.registrationDate.touched &&
               ngoForm.controls.registrationDate.hasError('futureDate')) {
-                <p class="field-error mc-field__error" role="alert">
+                <p id="registration-date-error" class="field-error mc-field__error" role="alert">
                   Registration date cannot be in the future.
                 </p>
               } @else if (ngoForm.controls.registrationDate.touched &&
               ngoForm.controls.registrationDate.hasError('invalidDate')) {
-                <p class="field-error mc-field__error" role="alert">
+                <p id="registration-date-error" class="field-error mc-field__error" role="alert">
                   Enter a valid registration date.
                 </p>
               }
@@ -729,12 +747,20 @@
               <input class="mc-field__input"
                      id="ngoContactEmail"
                      type="email"
-                     formControlName="contactEmail"/>
+                     formControlName="contactEmail"
+                     autocomplete="email"
+                     [attr.aria-invalid]="ngoForm.controls.contactEmail.touched && ngoForm.controls.contactEmail.invalid ? 'true' : null"
+                     [attr.aria-describedby]="ngoForm.controls.contactEmail.touched && ngoForm.controls.contactEmail.invalid ? 'ngo-contact-email-error' : null"/>
 
               @if (ngoForm.controls.contactEmail.touched &&
+              ngoForm.controls.contactEmail.hasError('required')) {
+                <p id="ngo-contact-email-error" class="field-error mc-field__error" role="alert">
+                  Enter the organization contact email.
+                </p>
+              } @else if (ngoForm.controls.contactEmail.touched &&
               ngoForm.controls.contactEmail.invalid) {
-                <p class="field-error mc-field__error" role="alert">
-                  Enter a valid organization contact email.
+                <p id="ngo-contact-email-error" class="field-error mc-field__error" role="alert">
+                  Enter a valid email address.
                 </p>
               }
             </div>
@@ -742,17 +768,20 @@
             <!-- Contact Phone -->
             <div class="form-field mc-field">
               <label for="ngoContactPhone">
-                Organization Contact Number *
+                Organization Contact Number (Optional)
               </label>
               <input class="mc-field__input"
                      id="ngoContactPhone"
                      type="tel"
-                     formControlName="contactPhone"/>
+                     formControlName="contactPhone"
+                     autocomplete="tel"
+                     [attr.aria-invalid]="ngoForm.controls.contactPhone.touched && ngoForm.controls.contactPhone.invalid ? 'true' : null"
+                     [attr.aria-describedby]="ngoForm.controls.contactPhone.touched && ngoForm.controls.contactPhone.invalid ? 'ngo-contact-phone-error' : null"/>
 
               @if (ngoForm.controls.contactPhone.touched &&
               ngoForm.controls.contactPhone.invalid) {
-                <p class="field-error mc-field__error" role="alert">
-                  Enter the organization's contact number.
+                <p id="ngo-contact-phone-error" class="field-error mc-field__error" role="alert">
+                  Enter 7–15 digits using only +, spaces, brackets, hyphens or dots (maximum 25 characters).
                 </p>
               }
             </div>

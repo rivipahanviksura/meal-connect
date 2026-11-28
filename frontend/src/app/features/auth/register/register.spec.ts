@@ -27,6 +27,121 @@ describe('Register', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  it('rejects missing and whitespace-only required account fields', () => {
+    component.accountForm.patchValue({
+      firstName: '   ',
+      lastName: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    });
+
+    expect(component.accountForm.invalid).toBe(true);
+    expect(component.accountForm.controls.firstName.hasError('pattern')).toBe(true);
+    expect(component.accountForm.controls.lastName.hasError('required')).toBe(true);
+    expect(component.accountForm.controls.email.hasError('required')).toBe(true);
+    expect(component.accountForm.controls.password.hasError('required')).toBe(true);
+  });
+
+  it('enforces password minimum and maximum lengths', () => {
+    const password = component.accountForm.controls.password;
+
+    password.setValue('short');
+    expect(password.hasError('minlength')).toBe(true);
+
+    password.setValue('a'.repeat(129));
+    expect(password.hasError('maxlength')).toBe(true);
+
+    password.setValue('a'.repeat(8));
+    expect(password.valid).toBe(true);
+
+    password.setValue('a'.repeat(128));
+    expect(password.valid).toBe(true);
+  });
+
+  it('allows an empty optional account phone and rejects invalid phone formats', () => {
+    const phone = component.accountForm.controls.phone;
+
+    phone.setValue('');
+    expect(phone.valid).toBe(true);
+
+    phone.setValue('+94 77 123 4567');
+    expect(phone.valid).toBe(true);
+
+    phone.setValue('123ABC');
+    expect(phone.hasError('pattern')).toBe(true);
+
+    phone.setValue('12345');
+    expect(phone.hasError('pattern')).toBe(true);
+
+    phone.setValue('1'.repeat(26));
+    expect(phone.hasError('maxlength')).toBe(true);
+  });
+
+  it('allows empty optional organization contact phone numbers and rejects invalid formats', () => {
+    const businessPhone = component.businessForm.controls.contactPhone;
+    const ngoPhone = component.ngoForm.controls.contactPhone;
+
+    businessPhone.setValue('');
+    ngoPhone.setValue('');
+
+    expect(businessPhone.valid).toBe(true);
+    expect(ngoPhone.valid).toBe(true);
+
+    businessPhone.setValue('123ABC');
+    ngoPhone.setValue('12345');
+
+    expect(businessPhone.hasError('pattern')).toBe(true);
+    expect(ngoPhone.hasError('pattern')).toBe(true);
+
+    businessPhone.setValue('+94 77 123 4567');
+    ngoPhone.setValue('+94 77 123 4567');
+
+    expect(businessPhone.valid).toBe(true);
+    expect(ngoPhone.valid).toBe(true);
+  });
+
+  it('rejects invalid and future NGO registration dates', () => {
+    const date = component.ngoForm.controls.registrationDate;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const futureDate = [
+      tomorrow.getFullYear(),
+      String(tomorrow.getMonth() + 1).padStart(2, '0'),
+      String(tomorrow.getDate()).padStart(2, '0'),
+    ].join('-');
+
+    date.setValue('2025-02-30');
+    expect(date.hasError('invalidDate')).toBe(true);
+
+    date.setValue(futureDate);
+    expect(date.hasError('futureDate')).toBe(true);
+
+    date.setValue('2020-01-01');
+    expect(date.valid).toBe(true);
+  });
+
+  it('does not send a registration request when account details are invalid', () => {
+    const http = TestBed.inject(HttpTestingController);
+
+    component.selectAccountType('ngo');
+    component.accountForm.patchValue({
+      firstName: '',
+      lastName: '',
+      email: 'invalid-email',
+      password: 'short',
+      confirmPassword: 'different',
+    });
+    component.currentStep.set(4);
+
+    component.registerAccount();
+
+    expect(component.accountForm.invalid).toBe(true);
+    expect(component.isRegisteringAccount()).toBe(false);
+    http.expectNone({ method: 'POST', url: '/api/v1/auth/register' });
+    http.verify();
+  });
   it('shows the API error summary and the email field error after a 422 response', () => {
     const fixture = TestBed.createComponent(Register);
     const component = fixture.componentInstance;
