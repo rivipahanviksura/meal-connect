@@ -1,0 +1,218 @@
+<form
+  class="account-form organization-form"
+  [formGroup]="form()"
+  (ngSubmit)="validateRequested.emit()"
+  novalidate>
+
+  <h2>Restaurant / Food Business Details</h2>
+  <p>
+    Provide your registered business information and
+    the location where surplus food can be collected.
+  </p>
+
+  <div class="form-grid mc-form-grid">
+    @if (showResumeRepresentativeName()) {
+      <div class="form-field full-width mc-field mc-field--full">
+        <label for="resumeRepresentativeName">Authorized Representative Name *</label>
+        <input
+          id="resumeRepresentativeName"
+          class="mc-field__input"
+          type="text"
+          autocomplete="name"
+          maxlength="180"
+          [formControl]="resumeRepresentativeName()"
+          required
+        />
+        @if (resumeRepresentativeName().touched && resumeRepresentativeName().invalid) {
+          <p class="field-error mc-field__error" role="alert">
+            Enter the authorized representative's name.
+          </p>
+        }
+      </div>
+    }
+
+    <div class="form-field full-width mc-field mc-field--full">
+      <label for="businessName">Registered Business Name *</label>
+      <input
+        class="mc-field__input"
+        id="businessName"
+        type="text"
+        formControlName="businessName"
+        autocomplete="organization"
+      />
+
+      @if (form().controls.businessName.touched && form().controls.businessName.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter your registered business name.
+        </p>
+      }
+    </div>
+
+    <div class="form-field mc-field">
+      <label for="businessRegistrationNumber">
+        Business Registration Number *
+      </label>
+      <input
+        class="mc-field__input"
+        id="businessRegistrationNumber"
+        type="text"
+        formControlName="registrationNumber"
+      />
+
+      @if (form().controls.registrationNumber.touched && form().controls.registrationNumber.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter a valid registration number.
+        </p>
+      }
+    </div>
+
+    <div class="form-field mc-field">
+      <label for="businessType">Business Type *</label>
+      <select
+        class="mc-field__select"
+        id="businessType"
+        formControlName="businessType"
+      >
+        <option value="">Select business type</option>
+        <option value="restaurant">Restaurant</option>
+        <option value="bakery">Bakery</option>
+      </select>
+
+      @if (form().controls.businessType.touched && form().controls.businessType.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Please select a business type.
+        </p>
+      }
+    </div>
+
+    <div class="form-field full-width mc-field mc-field--full">
+      <label for="businessAddress">Registered Address *</label>
+      <textarea
+        class="mc-field__textarea"
+        id="businessAddress"
+        formControlName="registeredAddress"
+        rows="3"
+      ></textarea>
+
+      @if (form().controls.registeredAddress.touched && form().controls.registeredAddress.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter the registered business address.
+        </p>
+      }
+    </div>
+
+    @let businessCity = form().controls.city;
+
+    <div class="form-field mc-field">
+      <label class="mc-field__label" for="business-city">Registered city *</label>
+      <input
+        class="mc-field__input"
+        id="business-city"
+        type="text"
+        [formControl]="businessCity"
+        autocomplete="address-level2"
+        required
+        [attr.aria-invalid]="businessCity.touched && businessCity.invalid ? 'true' : null"
+        [attr.aria-describedby]="businessCity.touched && businessCity.invalid ? 'business-city-error' : null"
+      />
+      @if (businessCity.touched && businessCity.invalid) {
+        <p class="mc-field__error" id="business-city-error">
+          {{
+            businessCity.hasError('required')
+              ? 'Enter the registered city.'
+              : 'Use 255 characters or fewer.'
+          }}
+        </p>
+      }
+    </div>
+
+    <div class="form-field full-width mc-field mc-field--full">
+      <label for="pickupLocation">Food Pickup Location *</label>
+      <textarea
+        class="mc-field__textarea"
+        id="pickupLocation"
+        formControlName="pickupLocation"
+        rows="3"
+      ></textarea>
+
+      @if (form().controls.pickupLocation.touched && form().controls.pickupLocation.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter the location for food collection.
+        </p>
+      }
+    </div>
+
+    <div class="form-field mc-field">
+      <label for="businessContactEmail">
+        Organization Contact Email *
+      </label>
+      <input
+        class="mc-field__input"
+        id="businessContactEmail"
+        type="email"
+        formControlName="contactEmail"
+        autocomplete="email"
+      />
+
+      @if (form().controls.contactEmail.touched && form().controls.contactEmail.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter a valid organization contact email.
+        </p>
+      }
+    </div>
+
+    <div class="form-field mc-field">
+      <label for="businessContactPhone">
+        Organization Contact Number *
+      </label>
+      <input
+        class="mc-field__input"
+        id="businessContactPhone"
+        type="tel"
+        formControlName="contactPhone"
+        autocomplete="tel"
+      />
+
+      @if (form().controls.contactPhone.touched && form().controls.contactPhone.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter your organization contact number.
+        </p>
+      }
+    </div>
+
+    <div class="form-field full-width mc-field mc-field--full">
+      <label for="businessDesignation">
+        Authorized Representative's Designation *
+      </label>
+      <input
+        class="mc-field__input"
+        id="businessDesignation"
+        type="text"
+        formControlName="representativeDesignation"
+        placeholder="e.g. Owner, Manager, Director"
+      />
+
+      @if (form().controls.representativeDesignation.touched && form().controls.representativeDesignation.invalid) {
+        <p class="field-error mc-field__error" role="alert">
+          Enter a designation of up to 100 characters.
+        </p>
+      }
+    </div>
+  </div>
+
+  <div class="register-actions form-actions">
+    @if (!showResumeRepresentativeName()) {
+      <button
+        type="button"
+        class="secondary-action"
+        (click)="backRequested.emit()"
+      >
+        Back
+      </button>
+    }
+
+    <button type="submit" class="primary-action">
+      Validate Organization Details
+    </button>
+  </div>
+</form>
